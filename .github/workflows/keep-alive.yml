@@ -1,0 +1,26 @@
+# El plan gratis de Supabase pausa los proyectos con poca actividad durante 7 días.
+# Esta tarea llama a la función keep_alive() tres veces al día para que el proyecto
+# (y los links de confirmación de los invitados) sigan funcionando.
+name: Mantener activo Supabase
+
+on:
+  schedule:
+    - cron: '17 1,9,17 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Llamar a keep_alive
+        run: |
+          set -a
+          . ./.env.production
+          set +a
+          curl --fail --silent --show-error --retry 3 --retry-delay 20 \
+            -X POST "$VITE_SUPABASE_URL/rest/v1/rpc/keep_alive" \
+            -H "apikey: $VITE_SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}'
