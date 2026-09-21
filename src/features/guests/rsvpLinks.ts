@@ -1,10 +1,11 @@
 import { toast } from 'sonner'
 import { whatsappLink } from '../../lib/contact'
+import { appUrl } from '../../lib/appUrl'
 import { formatDate, formatWeddingDate } from '../../lib/format'
 import type { Guest, WeddingSettings } from '../../types/database'
 
 export function rsvpUrl(token: string): string {
-  return `${window.location.origin}/rsvp/${token}`
+  return appUrl(`rsvp/${token}`)
 }
 
 export function invitationText(guest: Pick<Guest, 'name' | 'rsvp_token'>, settings?: WeddingSettings): string {

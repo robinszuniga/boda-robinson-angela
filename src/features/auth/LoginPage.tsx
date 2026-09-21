@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { supabase } from '../../lib/supabase'
 import { describeError } from '../../lib/errors'
+import { appUrl } from '../../lib/appUrl'
 import { Button } from '../../components/ui/Button'
 import { Field, Input } from '../../components/ui/Field'
 import { AuthShell } from './AuthShell'
@@ -46,7 +47,7 @@ export function LoginPage() {
       return
     }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/nueva-contrasena`,
+      redirectTo: appUrl('nueva-contrasena'),
     })
     if (error) setError(describeError(error))
     else toast.success('Te enviamos un correo para restablecer la contraseña.')

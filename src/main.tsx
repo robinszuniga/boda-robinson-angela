@@ -9,11 +9,13 @@ import { isSupabaseConfigured } from './lib/env'
 import { AuthProvider } from './features/auth/AuthProvider'
 import { ConfirmProvider } from './components/ui/Confirm'
 import { SetupRequired } from './components/layout/SetupRequired'
+import { BASE_PATH } from './lib/appUrl'
 
 // Los enlaces de invitación y de "olvidé mi contraseña" de Supabase llegan con
 // #...&type=invite|recovery: se abren en la pantalla para elegir contraseña.
-if (/[#&]type=(invite|recovery)\b/.test(window.location.hash) && window.location.pathname !== '/nueva-contrasena') {
-  window.history.replaceState(null, '', `/nueva-contrasena${window.location.hash}`)
+const newPasswordPath = `${BASE_PATH}nueva-contrasena`
+if (/[#&]type=(invite|recovery)\b/.test(window.location.hash) && window.location.pathname !== newPasswordPath) {
+  window.history.replaceState(null, '', `${newPasswordPath}${window.location.hash}`)
 }
 
 createRoot(document.getElementById('root')!).render(

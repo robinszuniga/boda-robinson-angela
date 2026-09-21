@@ -5,6 +5,7 @@ import { LoadingState } from './components/ui/Display'
 import { RequireAuth } from './features/auth/RequireAuth'
 import { LoginPage } from './features/auth/LoginPage'
 import { NewPasswordPage } from './features/auth/NewPasswordPage'
+import { ROUTER_BASENAME } from './lib/appUrl'
 
 const DashboardPage = lazy(() => import('./features/dashboard/DashboardPage'))
 const BudgetPage = lazy(() => import('./features/budget/BudgetPage'))
@@ -30,7 +31,7 @@ function Page({ children }: { children: ReactNode }) {
 
 export function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={ROUTER_BASENAME}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/nueva-contrasena" element={<NewPasswordPage />} />

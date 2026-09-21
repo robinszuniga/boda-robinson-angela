@@ -1,0 +1,26 @@
+# En repositorios públicos GitHub desactiva las tareas programadas (como keep-alive.yml)
+# si pasan 60 días sin actividad. Esta tarea hace un commit vacío en la rama "keepalive"
+# dos veces al mes para que el repositorio siga activo. No toca main ni vuelve a publicar.
+name: Mantener activo el repositorio
+
+on:
+  schedule:
+    - cron: '41 12 1,15 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  touch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Commit vacío en la rama keepalive
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B keepalive
+          git commit --allow-empty -m "chore: mantener activo el repositorio"
+          git push --force origin keepalive

@@ -59,16 +59,18 @@ npm run dev
 
 Abre http://localhost:5188 e inicia sesión con uno de los dos usuarios. En **Configuración** ajusta la fecha exacta, el lugar, la capacidad y el presupuesto, y carga la plantilla de tareas.
 
-## 3. Publicarla (Vercel o Netlify)
+## 3. Publicación (GitHub Pages)
 
-1. Sube el proyecto a un repositorio de GitHub.
-2. En Vercel: **Add New → Project**, importa el repo (detecta Vite solo). En Netlify: **Add new site → Import an existing project**, con build `npm run build` y carpeta `dist`.
-3. Agrega las variables de entorno `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`.
-4. En Supabase, **Authentication → URL Configuration**: pon la URL pública en **Site URL** y agrégala a **Redirect URLs** (la usa el correo de "olvidé mi contraseña").
+La app está publicada en **https://robinszuniga.github.io/boda-robinson-angela/**.
 
-`vercel.json` y `public/_redirects` ya están configurados para que las rutas como `/rsvp/...` funcionen al recargar.
+- Cada push a `main` la compila, corre las pruebas y la publica ([`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml)). En la pestaña **Actions** del repositorio se ve si salió bien.
+- En GitHub Pages la app vive en la subruta `/boda-robinson-angela/` (variable `BASE_PATH` al compilar) y `404.html` hace que links como `/rsvp/...` carguen la app.
+- En Supabase, **Authentication → URL Configuration** tiene como **Site URL** la dirección publicada y en **Redirect URLs** también `http://localhost:5188/**` para desarrollo.
+- El repositorio es público: se ve el código, pero los datos (invitados, pagos, documentos) están en Supabase protegidos por RLS. La clave de `.env.production` es la publishable, pensada para el navegador.
 
-> Los links de RSVP se arman con el dominio desde el que los copias. Cópienlos o envíenlos por WhatsApp desde la versión publicada, no desde `localhost`. Mientras no esté publicada, la Site URL de Supabase es `http://localhost:5188`.
+> Los links de RSVP se arman con el dominio desde el que los copias. Cópienlos o envíenlos por WhatsApp desde la versión publicada, no desde `localhost`.
+
+Si algún día prefieren Vercel o Netlify, `vercel.json` y `public/_redirects` ya están listos (sin `BASE_PATH`, la app vive en la raíz).
 
 ## Scripts
 
@@ -94,7 +96,7 @@ tests/                 Pruebas de la lógica y de la base de datos
 
 ## Plan gratis de Supabase: pausa y respaldos
 
-- **Pausa por inactividad:** Supabase pausa los proyectos gratis con poca actividad durante 7 días. La tarea [`.github/workflows/keep-alive.yml`](.github/workflows/keep-alive.yml) llama a `keep_alive()` tres veces al día desde GitHub Actions. Si alguna vez se pausa igual, se reactiva con "Restore" en el dashboard.
+- **Pausa por inactividad:** Supabase pausa los proyectos gratis con poca actividad durante 7 días. La tarea [`.github/workflows/keep-alive.yml`](.github/workflows/keep-alive.yml) llama a `keep_alive()` tres veces al día desde GitHub Actions, y [`repo-activity.yml`](.github/workflows/repo-activity.yml) hace un commit vacío en la rama `keepalive` dos veces al mes, porque en repositorios públicos GitHub desactiva las tareas programadas tras 60 días sin actividad. Si alguna vez se pausa igual, se reactiva con "Restore" en el dashboard.
 - **Sin copias automáticas:** en **Configuración → Respaldo** descarguen un JSON con todas las tablas (y un CSV de invitados para Excel) de vez en cuando. Los archivos de Documentos no van en el respaldo.
 
 ## Seguridad
