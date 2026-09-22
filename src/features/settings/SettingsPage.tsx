@@ -15,6 +15,7 @@ import { useLoadTaskTemplate, useRecalcTemplateDates } from '../tasks/templateAc
 import { useLoadScheduleExample } from '../daySchedule/scheduleActions'
 import { attempt } from '../../lib/attempt'
 import { GuestPageSettings } from './GuestPageSettings'
+import { MessagesSettings } from './MessagesSettings'
 import { BackupCard } from './BackupCard'
 
 interface FormValues {
@@ -173,6 +174,7 @@ export default function SettingsPage() {
           </form>
         </Card>
         <GuestPageSettings settings={settings.data} />
+        <MessagesSettings settings={settings.data} />
         </div>
 
         <div className="flex flex-col gap-6">

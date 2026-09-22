@@ -2,19 +2,34 @@ import { toast } from 'sonner'
 import { whatsappLink } from '../../lib/contact'
 import { appUrl } from '../../lib/appUrl'
 import { formatDate, formatWeddingDate } from '../../lib/format'
+import {
+  DEFAULT_INVITATION,
+  DEFAULT_REMINDER,
+  renderMessage,
+  type MessageValues,
+} from '../../lib/messages'
 import type { Guest, WeddingSettings } from '../../types/database'
 
 export function rsvpUrl(token: string): string {
   return appUrl(`rsvp/${token}`)
 }
 
-export function invitationText(guest: Pick<Guest, 'name' | 'rsvp_token'>, settings?: WeddingSettings): string {
-  const couple = settings ? `${settings.partner_1_name} y ${settings.partner_2_name}` : 'Nosotros'
-  // formatWeddingDate termina en "p. m." / "a. m.", así que no se agrega otro punto
-  const invite = settings
-    ? `${couple} queremos invitarte a nuestra boda el ${formatWeddingDate(settings.wedding_date).replace(', ', ' a las ')}`
-    : `${couple} queremos invitarte a nuestra boda.`
-  return `¡Hola, ${guest.name}!\n${invite}\nConfirma tu asistencia aquí: ${rsvpUrl(guest.rsvp_token)}`
+type GuestForMessage = Pick<Guest, 'name' | 'rsvp_token'>
+
+export function messageValues(guest: GuestForMessage, settings?: WeddingSettings): MessageValues {
+  return {
+    nombre: guest.name,
+    novios: settings ? `${settings.partner_1_name} y ${settings.partner_2_name}` : 'Nosotros',
+    // formatWeddingDate devuelve "sábado 8 de mayo de 2027, 5:00 p. m."
+    fecha: settings ? formatWeddingDate(settings.wedding_date).replace(', ', ' a las ') : '',
+    lugar: settings?.venue_name ?? '',
+    link: rsvpUrl(guest.rsvp_token),
+    limite: settings?.rsvp_deadline ? formatDate(settings.rsvp_deadline, "d 'de' MMMM") : '',
+  }
+}
+
+export function invitationText(guest: GuestForMessage, settings?: WeddingSettings): string {
+  return renderMessage(settings?.invitation_template?.trim() || DEFAULT_INVITATION, messageValues(guest, settings))
 }
 
 export function invitationWhatsapp(guest: Guest, settings?: WeddingSettings): string {
@@ -22,9 +37,8 @@ export function invitationWhatsapp(guest: Guest, settings?: WeddingSettings): st
 }
 
 /** Recordatorio amable para quien aún no confirma */
-export function reminderText(guest: Pick<Guest, 'name' | 'rsvp_token'>, settings?: WeddingSettings): string {
-  const deadline = settings?.rsvp_deadline ? ` antes del ${formatDate(settings.rsvp_deadline, "d 'de' MMMM")}` : ''
-  return `¡Hola, ${guest.name}! Te escribimos para recordarte que nos cuentes${deadline} si nos acompañas en nuestra boda. Es solo un clic aquí: ${rsvpUrl(guest.rsvp_token)}`
+export function reminderText(guest: GuestForMessage, settings?: WeddingSettings): string {
+  return renderMessage(settings?.reminder_template?.trim() || DEFAULT_REMINDER, messageValues(guest, settings))
 }
 
 export function reminderWhatsapp(guest: Guest, settings?: WeddingSettings): string {

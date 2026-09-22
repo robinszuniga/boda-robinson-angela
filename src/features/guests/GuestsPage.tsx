@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { guestMembersApi, guestsApi, seatingTablesApi, useSettings } from '../../lib/api'
 import { headcount } from '../../lib/seating'
-import { plural } from '../../lib/format'
+import { daysFromToday, plural } from '../../lib/format'
 import { ageSummary, confirmedByAge, partyAges } from '../../lib/ages'
 import { guestGroup, options, rsvpStatus } from '../../lib/labels'
 import { Button, ButtonLink, IconButton } from '../../components/ui/Button'
@@ -31,6 +31,7 @@ import { RemindersModal } from './RemindersModal'
 import { GuestQrModal } from './GuestQrModal'
 
 type AgeFilter = '' | 'nino' | 'mayor'
+type SentFilter = '' | 'sin_enviar' | 'sin_responder'
 
 const rsvpSelectTone: Record<RsvpStatus, string> = {
   pendiente: 'border-amber-200 bg-amber-50 text-amber-900',
@@ -52,6 +53,7 @@ export default function GuestsPage() {
   const [group, setGroup] = useState<GuestGroup | ''>('')
   const [status, setStatus] = useState<RsvpStatus | ''>('')
   const [age, setAge] = useState<AgeFilter>('')
+  const [sent, setSent] = useState<SentFilter>('')
 
   const queries = [settings, guests, tables, members]
   const failed = queries.find((q) => q.isError)
@@ -77,6 +79,8 @@ export default function GuestsPage() {
       (!group || g.guest_group === group) &&
       (!status || g.rsvp_status === status) &&
       (!age || (agesOf.get(g.id)?.[age] ?? 0) > 0) &&
+      (!sent ||
+        (sent === 'sin_enviar' ? !g.invitation_sent_at : g.invitation_sent_at && g.rsvp_status === 'pendiente')) &&
       (!term || `${g.name} ${g.phone ?? ''} ${g.notes ?? ''}`.toLowerCase().includes(term)),
   )
 
@@ -156,8 +160,8 @@ export default function GuestsPage() {
         <Stat icon={<UtensilsCrossed className="size-4" />} label="Con restricción alimentaria" value={dietaryCount} />
       </div>
 
-      <div className="mb-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-[1fr_12rem_11rem_12rem]">
-        <div className="relative sm:col-span-3 xl:col-span-1">
+      <div className="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-[1fr_10.5rem_10.5rem_11rem_12rem]">
+        <div className="relative sm:col-span-2 xl:col-span-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
           <Input aria-label="Buscar invitado" placeholder="Buscar…" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
@@ -182,6 +186,11 @@ export default function GuestsPage() {
           <option value="nino">Con niños</option>
           <option value="mayor">Con adultos mayores</option>
         </Select>
+        <Select aria-label="Filtrar por invitación" value={sent} onChange={(e) => setSent(e.target.value as SentFilter)}>
+          <option value="">Toda invitación</option>
+          <option value="sin_enviar">Sin enviar</option>
+          <option value="sin_responder">Enviada, sin responder</option>
+        </Select>
       </div>
 
       {filtered.length === 0 ? (
@@ -202,6 +211,8 @@ export default function GuestsPage() {
               const companions =
                 g.rsvp_status === 'confirmado' ? g.plus_ones_confirmed : g.plus_ones_allowed
               const ages = ageSummary(agesOf.get(g.id)!)
+              const waiting =
+                g.invitation_sent_at && g.rsvp_status === 'pendiente' ? -daysFromToday(g.invitation_sent_at) : null
               return (
                 <li key={g.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
                   <button type="button" onClick={() => setForm({ guest: g })} className="min-w-[10rem] flex-1 text-left">
@@ -216,6 +227,8 @@ export default function GuestsPage() {
                           .map((m) => (m.attending === false ? `${m.name} (no va)` : m.name))
                           .join(', ')}`}
                       {ages && ` · ${ages}`}
+                      {waiting != null &&
+                        ` · invitada ${waiting === 0 ? 'hoy' : waiting === 1 ? 'ayer' : `hace ${waiting} días`}`}
                       {g.table_id && tableNumber.has(g.table_id) && ` · Mesa ${tableNumber.get(g.table_id)}`}
                       {g.dietary && ` · ${g.dietary}`}
                       {g.song_request && <Music className="ml-1.5 inline size-3 -translate-y-px" aria-label={`Pidió: ${g.song_request}`} />}

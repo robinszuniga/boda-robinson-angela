@@ -34,6 +34,8 @@ export type WeddingSettings = {
   ask_song: boolean
   offer_transport: boolean
   coordinator_notes: string | null
+  invitation_template: string | null
+  reminder_template: string | null
   updated_at: string
 }
 
