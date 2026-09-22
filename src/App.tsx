@@ -19,6 +19,7 @@ const DaySchedulePage = lazy(() => import('./features/daySchedule/DaySchedulePag
 const PrintSchedulePage = lazy(() => import('./features/daySchedule/PrintSchedulePage'))
 const CoordinatorSheetPage = lazy(() => import('./features/daySchedule/CoordinatorSheetPage'))
 const QrSheetPage = lazy(() => import('./features/guests/QrSheetPage'))
+const SendInvitationsPage = lazy(() => import('./features/guests/SendInvitationsPage'))
 const DocumentsPage = lazy(() => import('./features/documents/DocumentsPage'))
 const GiftsPage = lazy(() => import('./features/gifts/GiftsPage'))
 const ThanksPage = lazy(() => import('./features/thanks/ThanksPage'))
@@ -49,6 +50,7 @@ export function App() {
             <Route path="proveedores/:id" element={<Page><VendorDetailPage /></Page>} />
             <Route path="comparador" element={<Page><ComparatorPage /></Page>} />
             <Route path="invitados" element={<Page><GuestsPage /></Page>} />
+            <Route path="invitados/enviar" element={<Page><SendInvitationsPage /></Page>} />
             <Route path="mesas" element={<Page><SeatingPage /></Page>} />
             <Route path="tareas" element={<Page><TasksPage /></Page>} />
             <Route path="cronograma" element={<Page><DaySchedulePage /></Page>} />

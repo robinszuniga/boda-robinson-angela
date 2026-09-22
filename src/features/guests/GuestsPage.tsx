@@ -9,6 +9,7 @@ import {
   Pencil,
   QrCode as QrIcon,
   Search,
+  Send,
   UserPlus,
   Users,
   UtensilsCrossed,
@@ -101,6 +102,9 @@ export default function GuestsPage() {
                 Recordar ({pending.length})
               </Button>
             )}
+            <ButtonLink to="/invitados/enviar" variant="secondary" icon={<Send className="size-4" />}>
+              Enviar invitaciones
+            </ButtonLink>
             <ButtonLink to="/invitados/qr" variant="secondary" icon={<QrIcon className="size-4" />}>
               Códigos QR
             </ButtonLink>

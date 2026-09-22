@@ -808,6 +808,15 @@ set sort_order = (select max(sort_order) from public.budget_categories) + 1
 where name = 'Otros'
   and sort_order < (select max(sort_order) from public.budget_categories);
 
+-- >>> 0007_invitaciones.sql
+-- =============================================================
+-- 0007 · Envío de invitaciones por WhatsApp: cuándo se le envió
+--        la invitación a cada invitado
+-- =============================================================
+
+alter table public.guests
+  add column invitation_sent_at timestamptz;
+
 commit;
 
 -- =============================================================

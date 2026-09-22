@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { todayISO } from './format'
+import { download, downloadCsv } from './download'
 import { ageGroup, guestGroup, rsvpStatus } from './labels'
 import type { Guest, GuestMember, SeatingTable, TableName } from '../types/database'
 
@@ -23,17 +24,6 @@ export const BACKUP_TABLES: TableName[] = [
   'gift_claims',
   'gifts_received',
 ]
-
-function download(content: BlobPart, filename: string, type: string) {
-  const url = URL.createObjectURL(new Blob([content], { type }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
 
 /** Descarga todas las tablas en un JSON (los archivos de Documentos no se incluyen) */
 export async function downloadBackup(): Promise<number> {
@@ -109,6 +99,5 @@ export function guestsCsv(guests: Guest[], tables: SeatingTable[], members: Gues
 }
 
 export function downloadGuestsCsv(guests: Guest[], tables: SeatingTable[], members: GuestMember[]) {
-  // BOM para que Excel reconozca las tildes
-  download(String.fromCharCode(0xfeff) + guestsCsv(guests, tables, members), `invitados-${todayISO()}.csv`, 'text/csv;charset=utf-8')
+  downloadCsv(guestsCsv(guests, tables, members), `invitados-${todayISO()}.csv`)
 }
