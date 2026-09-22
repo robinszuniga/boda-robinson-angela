@@ -249,6 +249,14 @@ export default function GuestsPage() {
               )
             })}
           </ul>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button variant="secondary" icon={<ListPlus className="size-4" />} onClick={() => setBulk(true)}>
+              Agregar varios
+            </Button>
+            <Button variant="secondary" icon={<UserPlus className="size-4" />} onClick={() => setForm({})}>
+              Invitado
+            </Button>
+          </div>
         </>
       )}
 
