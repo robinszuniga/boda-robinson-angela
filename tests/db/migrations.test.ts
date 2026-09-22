@@ -379,6 +379,77 @@ describe('lista de chequeo (0006)', () => {
   })
 })
 
+describe('acompañantes que escribe el invitado (0009)', () => {
+  it('crea los acompañantes con los nombres que escribió y los cuenta', async () => {
+    const g = await newGuest('Tía Marta', 2)
+    await as('anon')
+    const [{ data }] = await rows<{ data: { guest: { plus_ones_confirmed: number; members: { name: string }[] } } }>(
+      `select public.rsvp_submit($1, 'confirmado', 2, null, null, null, false, null, $2::jsonb) as data`,
+      [g.rsvp_token, JSON.stringify(['Luis Pérez', '  Ana  '])],
+    )
+    expect(data.guest.plus_ones_confirmed).toBe(2)
+    expect(data.guest.members.map((m) => m.name)).toEqual(['Luis Pérez', 'Ana'])
+  })
+
+  it('no acepta más acompañantes de los permitidos ni nombres vacíos', async () => {
+    const g = await newGuest('Primo Juan', 1)
+    await as('anon')
+    await expect(
+      db.query(`select public.rsvp_submit($1, 'confirmado', 2, null, null, null, false, null, $2::jsonb)`, [
+        g.rsvp_token,
+        JSON.stringify(['Uno', 'Dos']),
+      ]),
+    ).rejects.toThrow(/invalid_plus_ones/)
+    await expect(
+      db.query(`select public.rsvp_submit($1, 'confirmado', 1, null, null, null, false, null, $2::jsonb)`, [
+        g.rsvp_token,
+        JSON.stringify(['   ']),
+      ]),
+    ).rejects.toThrow(/invalid_member_name/)
+  })
+
+  it('si responde otra vez, reemplaza la lista en vez de duplicarla', async () => {
+    const g = await newGuest('Carlos', 2)
+    await as('anon')
+    const submit = (names: string[]) =>
+      db.query(`select public.rsvp_submit($1, 'confirmado', $3, null, null, null, false, null, $2::jsonb)`, [
+        g.rsvp_token,
+        JSON.stringify(names),
+        names.length,
+      ])
+    await submit(['Ana', 'Luis'])
+    await submit(['Sofía'])
+    await as('postgres')
+    const members = await rows<{ name: string }>('select name from public.guest_members where guest_id = $1', [g.id])
+    expect(members.map((m) => m.name)).toEqual(['Sofía'])
+    const [row] = await rows<{ plus_ones_confirmed: number }>(
+      'select plus_ones_confirmed from public.guests where id = $1',
+      [g.id],
+    )
+    expect(row.plus_ones_confirmed).toBe(1)
+  })
+
+  it('si los novios ya pusieron los acompañantes, manda la lista con casillas y no se tocan', async () => {
+    const g = await newGuest('Familia Pérez', 2)
+    const [ana] = await rows<{ id: string }>(
+      `insert into public.guest_members (guest_id, name, age_group) values ($1, 'Ana', 'nino') returning id`,
+      [g.id],
+    )
+    await as('anon')
+    await db.query(`select public.rsvp_submit($1, 'confirmado', 1, null, null, null, false, $2::jsonb, $3::jsonb)`, [
+      g.rsvp_token,
+      JSON.stringify([{ id: ana.id, attending: true }]),
+      JSON.stringify(['Intruso']),
+    ])
+    await as('postgres')
+    const members = await rows<{ name: string; age_group: string }>(
+      'select name, age_group from public.guest_members where guest_id = $1',
+      [g.id],
+    )
+    expect(members).toEqual([{ name: 'Ana', age_group: 'nino' }])
+  })
+})
+
 describe('setup.sql', () => {
   it('está sincronizado con las migraciones', () => {
     const setup = readFileSync(join(root, 'supabase', 'setup.sql'), 'utf8')

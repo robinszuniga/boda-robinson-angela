@@ -317,6 +317,7 @@ export type Database = {
           p_song?: string | null
           p_needs_transport?: boolean
           p_members?: { id: string; attending: boolean; dietary: string | null }[] | null
+          p_new_members?: string[] | null
         }
         Returns: RsvpView
       }

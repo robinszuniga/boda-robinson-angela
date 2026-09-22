@@ -252,6 +252,8 @@ function RsvpForm({
   const [editing, setEditing] = useState(!answered)
   const [attending, setAttending] = useState<boolean | null>(answered ? guest.rsvp_status === 'confirmado' : null)
   const [plusOnes, setPlusOnes] = useState(answered ? guest.plus_ones_confirmed : guest.plus_ones_allowed)
+  // Nombres de los acompañantes cuando la invitación no los traía
+  const [names, setNames] = useState<string[]>(() => Array(guest.plus_ones_allowed).fill(''))
   const [members, setMembers] = useState<MemberState>(() =>
     Object.fromEntries(
       guest.members.map((m) => [m.id, { attending: m.attending ?? !answered, dietary: m.dietary ?? '' }]),
@@ -264,6 +266,9 @@ function RsvpForm({
 
   const setMember = (id: string, patch: Partial<MemberState[string]>) =>
     setMembers((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }))
+
+  const askNames = !hasMembers && guest.plus_ones_allowed > 0
+  const companionNames = names.slice(0, plusOnes).map((n) => n.trim())
 
   const submit = useMutation({
     mutationFn: async () => {
@@ -282,6 +287,7 @@ function RsvpForm({
               dietary: members[m.id].dietary.trim() || null,
             }))
           : null,
+        p_new_members: attending && askNames ? companionNames : null,
       })
       if (error) throw error
       return data
@@ -337,6 +343,10 @@ function RsvpForm({
             e.preventDefault()
             if (attending === null) {
               toast.error('Cuéntanos si asistirás')
+              return
+            }
+            if (attending && askNames && companionNames.some((n) => !n)) {
+              toast.error('Escribe el nombre de cada acompañante')
               return
             }
             submit.mutate()
@@ -397,18 +407,45 @@ function RsvpForm({
             </fieldset>
           )}
 
-          {attending && !hasMembers && guest.plus_ones_allowed > 0 && (
-            <Field label="¿Cuántos acompañantes vienen contigo?" hint={`Tu invitación incluye hasta ${guest.plus_ones_allowed}.`}>
-              {(id) => (
-                <Select id={id} value={plusOnes} onChange={(e) => setPlusOnes(Number(e.target.value))}>
-                  {Array.from({ length: guest.plus_ones_allowed + 1 }, (_, n) => (
-                    <option key={n} value={n}>
-                      {n === 0 ? 'Solo yo' : `${n} ${n === 1 ? 'acompañante' : 'acompañantes'}`}
-                    </option>
+          {attending && askNames && (
+            <>
+              <Field
+                label="¿Cuántos acompañantes vienen contigo?"
+                hint={`Tu invitación incluye hasta ${guest.plus_ones_allowed}.`}
+              >
+                {(id) => (
+                  <Select id={id} value={plusOnes} onChange={(e) => setPlusOnes(Number(e.target.value))}>
+                    {Array.from({ length: guest.plus_ones_allowed + 1 }, (_, n) => (
+                      <option key={n} value={n}>
+                        {n === 0 ? 'Solo yo' : `${n} ${n === 1 ? 'acompañante' : 'acompañantes'}`}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+              {plusOnes > 0 && (
+                <fieldset className="flex flex-col gap-2">
+                  <legend className="mb-1.5 text-sm font-medium">¿Cómo se llaman?</legend>
+                  {Array.from({ length: plusOnes }, (_, i) => (
+                    <Input
+                      key={i}
+                      aria-label={`Nombre del acompañante ${i + 1}`}
+                      placeholder={`Nombre del acompañante ${i + 1}`}
+                      maxLength={120}
+                      value={names[i] ?? ''}
+                      onChange={(e) =>
+                        setNames((prev) => {
+                          const next = [...prev]
+                          next[i] = e.target.value
+                          return next
+                        })
+                      }
+                    />
                   ))}
-                </Select>
+                  <p className="text-xs text-muted">Así sabemos a quién sentar contigo y cómo hacer su tarjeta.</p>
+                </fieldset>
               )}
-            </Field>
+            </>
           )}
 
           {attending && (
