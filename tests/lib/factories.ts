@@ -1,4 +1,4 @@
-import type { BudgetCategory, Guest, GuestLink, Payment, SeatingTable, Vendor } from '../../src/types/database'
+import type { BudgetCategory, Guest, GuestLink, GuestMember, Payment, SeatingTable, Vendor } from '../../src/types/database'
 
 let n = 0
 const id = (prefix: string) => `${prefix}-${++n}`
@@ -58,6 +58,7 @@ export function guest(overrides: Partial<Guest> = {}): Guest {
     song_request: null,
     needs_transport: false,
     rsvp_reminded_at: null,
+    age_group: 'adulto',
     created_at: now,
     updated_at: now,
     ...overrides,
@@ -70,4 +71,8 @@ export function table(overrides: Partial<SeatingTable> = {}): SeatingTable {
 
 export function link(overrides: Partial<GuestLink> & Pick<GuestLink, 'guest_a' | 'guest_b'>): GuestLink {
   return { id: id('lnk'), kind: 'juntos', note: null, created_at: now, ...overrides }
+}
+
+export function member(overrides: Partial<GuestMember> & Pick<GuestMember, 'guest_id' | 'name'>): GuestMember {
+  return { id: id('mem'), attending: null, dietary: null, age_group: 'adulto', sort_order: 0, created_at: now, ...overrides }
 }

@@ -13,9 +13,10 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { toast } from 'sonner'
-import { AlertTriangle, Armchair, Pencil, Plus, Search, UserMinus } from 'lucide-react'
-import { guestLinksApi, guestsApi, seatingTablesApi } from '../../lib/api'
+import { Accessibility, AlertTriangle, Armchair, Baby, Pencil, Plus, Search, UserMinus } from 'lucide-react'
+import { guestLinksApi, guestMembersApi, guestsApi, seatingTablesApi } from '../../lib/api'
 import { linkConflicts, occupancy, seatsFor, type TableOccupancy, type TableStatus } from '../../lib/seating'
+import { ageSummary, partyAges, type AgeCount } from '../../lib/ages'
 import { Button, IconButton } from '../../components/ui/Button'
 import { Badge, EmptyState, ErrorState, LoadingState, PageHeader, Segmented } from '../../components/ui/Display'
 import { Input } from '../../components/ui/Field'
@@ -44,18 +45,42 @@ function chipClass(guest: Guest, extra?: string) {
   )
 }
 
-function ChipContent({ guest, warn }: { guest: Guest; warn?: boolean }) {
+/** Niños y adultos mayores de cada invitación (con sus acompañantes con nombre) */
+type AgesById = Map<string, AgeCount>
+
+function AgeMarks({ ages }: { ages?: AgeCount }) {
+  if (!ages) return null
+  return (
+    <>
+      {ages.nino > 0 && (
+        <span className="inline-flex shrink-0 items-center text-xs text-sky-700" title={ageSummary({ ...ages, mayor: 0 })}>
+          <Baby className="size-3.5" aria-label={ageSummary({ ...ages, mayor: 0 })} />
+          {ages.nino > 1 && ages.nino}
+        </span>
+      )}
+      {ages.mayor > 0 && (
+        <span className="inline-flex shrink-0 items-center text-xs text-violet-700" title={ageSummary({ ...ages, nino: 0 })}>
+          <Accessibility className="size-3.5" aria-label={ageSummary({ ...ages, nino: 0 })} />
+          {ages.mayor > 1 && ages.mayor}
+        </span>
+      )}
+    </>
+  )
+}
+
+function ChipContent({ guest, ages, warn }: { guest: Guest; ages?: AgeCount; warn?: boolean }) {
   const extra = seatsFor(guest) - 1
   return (
     <>
       <span className="min-w-0 flex-1 truncate">{guest.name}</span>
       {extra > 0 && <span className="shrink-0 text-xs text-muted">+{extra}</span>}
+      <AgeMarks ages={ages} />
       {warn && <AlertTriangle className="size-3.5 shrink-0 text-red-600" aria-label="Conflicto de vínculo" />}
     </>
   )
 }
 
-function GuestChip({ guest, warn, onClick }: { guest: Guest; warn?: boolean; onClick?: () => void }) {
+function GuestChip({ guest, ages, warn, onClick }: { guest: Guest; ages?: AgeCount; warn?: boolean; onClick?: () => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: guest.id })
   return (
     <button
@@ -67,16 +92,16 @@ function GuestChip({ guest, warn, onClick }: { guest: Guest; warn?: boolean; onC
       className={chipClass(guest, isDragging ? 'opacity-30' : undefined)}
       title={guest.rsvp_status === 'pendiente' ? 'Pendiente de confirmar' : undefined}
     >
-      <ChipContent guest={guest} warn={warn} />
+      <ChipContent guest={guest} ages={ages} warn={warn} />
     </button>
   )
 }
 
 /** Copia que sigue al puntero mientras se arrastra */
-function DraggingChip({ guest }: { guest: Guest }) {
+function DraggingChip({ guest, ages }: { guest: Guest; ages?: AgeCount }) {
   return (
     <div className={chipClass(guest, 'rotate-1 shadow-lg ring-2 ring-brand-300')}>
-      <ChipContent guest={guest} />
+      <ChipContent guest={guest} ages={ages} />
     </div>
   )
 }
@@ -94,6 +119,7 @@ export default function SeatingPage() {
   const tables = seatingTablesApi.useList()
   const guests = guestsApi.useList()
   const links = guestLinksApi.useList()
+  const members = guestMembersApi.useList()
   const update = guestsApi.useUpdate()
   const [filter, setFilter] = useState<Filter>('todas')
   const [search, setSearch] = useState('')
@@ -107,12 +133,13 @@ export default function SeatingPage() {
     useSensor(KeyboardSensor),
   )
 
-  const queries = [tables, guests, links]
+  const queries = [tables, guests, links, members]
   const failed = queries.find((q) => q.isError)
   if (failed) return <ErrorState error={failed.error} onRetry={() => queries.forEach((q) => q.refetch())} />
   if (queries.some((q) => q.isPending)) return <LoadingState />
 
   const attending = (guests.data ?? []).filter((g) => g.rsvp_status !== 'rechazado')
+  const ages: AgesById = new Map(attending.map((g) => [g.id, partyAges(g, members.data ?? [])]))
   const occ = occupancy(tables.data ?? [], attending)
   const conflicts = linkConflicts(links.data ?? [], guests.data ?? [])
   const conflictGuests = new Set(conflicts.flatMap((c) => [c.a.id, c.b.id]))
@@ -198,11 +225,22 @@ export default function SeatingPage() {
                   <p className="py-4 text-center text-sm text-muted">{term ? 'Nadie coincide' : 'Todos tienen mesa'}</p>
                 ) : (
                   unassigned.map((g) => (
-                    <GuestChip key={g.id} guest={g} warn={conflictGuests.has(g.id)} onClick={() => setAssigning(g)} />
+                    <GuestChip
+                      key={g.id}
+                      guest={g}
+                      ages={ages.get(g.id)}
+                      warn={conflictGuests.has(g.id)}
+                      onClick={() => setAssigning(g)}
+                    />
                   ))
                 )}
               </div>
               <p className="mt-3 text-xs text-muted">Borde punteado = aún no confirma (se le reservan sus acompañantes).</p>
+              <p className="mt-1 text-xs text-muted">
+                <Baby className="inline size-3.5 -translate-y-px text-sky-700" /> niños ·{' '}
+                <Accessibility className="inline size-3.5 -translate-y-px text-violet-700" /> adultos mayores (siéntenlos
+                cerca de baños y salida)
+              </p>
             </DropZone>
             <LinksPanel guests={attending} links={links.data ?? []} conflicts={conflicts} />
           </div>
@@ -236,6 +274,7 @@ export default function SeatingPage() {
                   <TableCard
                     key={t.table.id}
                     occ={t}
+                    ages={ages}
                     conflictGuests={conflictGuests}
                     onEdit={() => setTableForm({ table: t.table })}
                     onGuestClick={setAssigning}
@@ -245,7 +284,7 @@ export default function SeatingPage() {
             )}
           </div>
         </div>
-        <DragOverlay>{dragging && <DraggingChip guest={dragging} />}</DragOverlay>
+        <DragOverlay>{dragging && <DraggingChip guest={dragging} ages={ages.get(dragging.id)} />}</DragOverlay>
       </DndContext>
 
       {tableForm && <TableFormModal {...tableForm} nextNumber={nextNumber} onClose={() => setTableForm(null)} />}
@@ -266,16 +305,27 @@ export default function SeatingPage() {
 
 function TableCard({
   occ,
+  ages,
   conflictGuests,
   onEdit,
   onGuestClick,
 }: {
   occ: TableOccupancy
+  ages: AgesById
   conflictGuests: Set<string>
   onEdit: () => void
   onGuestClick: (g: Guest) => void
 }) {
   const style = statusStyle[occ.status]
+  const tableAges = ageSummary(
+    occ.guests.reduce<AgeCount>(
+      (sum, g) => {
+        const a = ages.get(g.id)
+        return a ? { adulto: sum.adulto + a.adulto, nino: sum.nino + a.nino, mayor: sum.mayor + a.mayor } : sum
+      },
+      { adulto: 0, nino: 0, mayor: 0 },
+    ),
+  )
   return (
     <DropZone id={occ.table.id} className={cn('flex flex-col rounded-2xl border-2 bg-white p-4 shadow-xs transition', style.ring)}>
       <div className="flex items-start justify-between gap-2">
@@ -298,10 +348,17 @@ function TableCard({
           : occ.status === 'completa'
             ? 'Completa'
             : `${occ.free} puestos libres`}
+        {tableAges && <span className="text-muted"> · {tableAges}</span>}
       </p>
       <div className="flex min-h-12 flex-col gap-1.5">
         {occ.guests.map((g) => (
-          <GuestChip key={g.id} guest={g} warn={conflictGuests.has(g.id)} onClick={() => onGuestClick(g)} />
+          <GuestChip
+            key={g.id}
+            guest={g}
+            ages={ages.get(g.id)}
+            warn={conflictGuests.has(g.id)}
+            onClick={() => onGuestClick(g)}
+          />
         ))}
         {occ.guests.length === 0 && (
           <p className="rounded-lg border border-dashed border-line py-3 text-center text-xs text-muted">Suelta invitados aquí</p>

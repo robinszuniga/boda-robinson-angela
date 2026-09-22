@@ -52,13 +52,15 @@ beforeEach(async () => {
 })
 
 describe('esquema y datos iniciales', () => {
-  it('crea la configuración y las 10 categorías por defecto', async () => {
+  it('crea la configuración y las 14 categorías por defecto, con "Otros" de última', async () => {
     await as('authenticated', COUPLE)
     const settings = await rows<{ partner_1_name: string }>('select * from public.wedding_settings')
     expect(settings).toHaveLength(1)
     expect(settings[0].partner_1_name).toBe('Robinson')
-    const cats = await rows('select * from public.budget_categories')
-    expect(cats).toHaveLength(10)
+    const cats = await rows<{ name: string }>('select name from public.budget_categories order by sort_order')
+    expect(cats).toHaveLength(14)
+    expect(cats.map((c) => c.name)).toContain('Ceremonia y trámites')
+    expect(cats.at(-1)?.name).toBe('Otros')
   })
 
   it('rechaza acompañantes confirmados por encima de los permitidos', async () => {
@@ -328,6 +330,52 @@ describe('experiencia del invitado (0005)', () => {
     await expect(db.query('select * from public.guest_members')).rejects.toThrow(/permission denied/)
     const [{ n }] = await rows<{ n: number }>('select public.keep_alive() as n')
     expect(n).toBe(1)
+  })
+})
+
+describe('lista de chequeo (0006)', () => {
+  it('invitados y acompañantes son adultos por defecto y solo aceptan edades válidas', async () => {
+    const g = await newGuest('Abuela Rosa')
+    await as('authenticated', COUPLE)
+    const [row] = await rows<{ age_group: string }>('select age_group from public.guests where id = $1', [g.id])
+    expect(row.age_group).toBe('adulto')
+    await db.query(`update public.guests set age_group = 'mayor' where id = $1`, [g.id])
+    await db.query(`insert into public.guest_members (guest_id, name, age_group) values ($1, 'Tomás', 'nino')`, [g.id])
+    await expect(db.query(`update public.guests set age_group = 'bebe' where id = $1`, [g.id])).rejects.toThrow(
+      /invalid input value for enum/,
+    )
+  })
+
+  it('confirmar desde el link público no cambia la edad de los acompañantes', async () => {
+    const g = await newGuest('Carlos Pérez', 1)
+    const [tomas] = await rows<{ id: string }>(
+      `insert into public.guest_members (guest_id, name, age_group) values ($1, 'Tomás', 'nino') returning id`,
+      [g.id],
+    )
+    await as('anon')
+    await db.query(`select public.rsvp_submit($1, 'confirmado', 0, null, null, null, false, $2::jsonb)`, [
+      g.rsvp_token,
+      JSON.stringify([{ id: tomas.id, attending: true, dietary: 'Menú infantil' }]),
+    ])
+    await as('postgres')
+    const [row] = await rows<{ age_group: string; attending: boolean }>(
+      'select age_group, attending from public.guest_members where id = $1',
+      [tomas.id],
+    )
+    expect(row).toEqual({ age_group: 'nino', attending: true })
+  })
+
+  it('los novios guardan las notas del coordinador y el anónimo no las ve', async () => {
+    const g = await newGuest('Primo Juan')
+    await as('authenticated', COUPLE)
+    await db.query(`update public.wedding_settings set coordinator_notes = 'Coordinadora: Laura 300 123 4567'`)
+    await as('anon')
+    const [{ data }] = await rows<{ data: { wedding: Record<string, unknown> } }>('select public.rsvp_get($1) as data', [
+      g.rsvp_token,
+    ])
+    expect(JSON.stringify(data)).not.toContain('Laura')
+    await as('postgres')
+    await db.exec('update public.wedding_settings set coordinator_notes = null')
   })
 })
 

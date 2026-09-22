@@ -17,6 +17,7 @@ const SeatingPage = lazy(() => import('./features/seating/SeatingPage'))
 const TasksPage = lazy(() => import('./features/tasks/TasksPage'))
 const DaySchedulePage = lazy(() => import('./features/daySchedule/DaySchedulePage'))
 const PrintSchedulePage = lazy(() => import('./features/daySchedule/PrintSchedulePage'))
+const CoordinatorSheetPage = lazy(() => import('./features/daySchedule/CoordinatorSheetPage'))
 const QrSheetPage = lazy(() => import('./features/guests/QrSheetPage'))
 const DocumentsPage = lazy(() => import('./features/documents/DocumentsPage'))
 const GiftsPage = lazy(() => import('./features/gifts/GiftsPage'))
@@ -39,6 +40,7 @@ export function App() {
 
         <Route element={<RequireAuth />}>
           <Route path="/cronograma/imprimir" element={<Page><PrintSchedulePage /></Page>} />
+          <Route path="/cronograma/coordinador" element={<Page><CoordinatorSheetPage /></Page>} />
           <Route path="/invitados/qr" element={<Page><QrSheetPage /></Page>} />
           <Route element={<AppLayout />}>
             <Route index element={<Page><DashboardPage /></Page>} />

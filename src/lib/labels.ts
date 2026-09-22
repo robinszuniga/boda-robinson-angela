@@ -1,4 +1,5 @@
 import type {
+  AgeGroup,
   DocumentCategory,
   GiftKind,
   GuestGroup,
@@ -31,6 +32,12 @@ export const guestGroup: Record<GuestGroup, string> = {
   amigos: 'Amigos',
   trabajo: 'Trabajo',
   otros: 'Otros',
+}
+
+export const ageGroup: Record<AgeGroup, string> = {
+  adulto: 'Adulto',
+  nino: 'Niño(a)',
+  mayor: 'Adulto mayor',
 }
 
 export const rsvpStatus: Record<RsvpStatus, Label> = {

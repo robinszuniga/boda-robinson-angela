@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { guestsCsv } from '../../src/lib/backup'
-import type { GuestMember } from '../../src/types/database'
-import { guest, table } from './factories'
+import { guest, member, table } from './factories'
 
 describe('guestsCsv', () => {
   it('arma el CSV con acompañantes, dietas y mesa, escapando comillas y punto y coma', () => {
@@ -16,15 +15,17 @@ describe('guestsCsv', () => {
       song_request: 'La bicicleta',
       needs_transport: true,
     })
-    const members: GuestMember[] = [
-      { id: 'm1', guest_id: g.id, name: 'Ana', attending: true, dietary: 'Vegana', sort_order: 0, created_at: '' },
-      { id: 'm2', guest_id: g.id, name: 'Sofía', attending: false, dietary: null, sort_order: 1, created_at: '' },
+    const members = [
+      member({ guest_id: g.id, name: 'Ana', attending: true, dietary: 'Vegana' }),
+      member({ guest_id: g.id, name: 'Sofía', attending: false, sort_order: 1 }),
+      member({ guest_id: g.id, name: 'Tomás', attending: true, age_group: 'nino', sort_order: 2 }),
     ]
     const [header, row] = guestsCsv([g], [t], members).split('\r\n')
     expect(header.split(';')[0]).toBe('Invitado')
     expect(row).toContain('"Carlos ""Charly"" Pérez"')
     expect(row).toContain('Confirmado')
-    expect(row).toContain('Ana (sí), Sofía (no)')
+    expect(row).toContain('Ana (sí), Sofía (no), Tomás (sí, niño(a))')
+    expect(header).toContain('Edad')
     expect(row).toContain('"Sin gluten; sin lactosa | Ana: Vegana"')
     expect(row).toContain(';4;')
     expect(row).toContain('La bicicleta;Sí')

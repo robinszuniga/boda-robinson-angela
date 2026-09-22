@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
-import { Clock, Copy, MapPin, Music, Plus, Printer, User } from 'lucide-react'
+import { ClipboardList, Clock, Copy, MapPin, Music, Plus, Printer, User } from 'lucide-react'
 import { guestsApi, scheduleApi, useSettings, vendorsApi } from '../../lib/api'
 import { attempt } from '../../lib/attempt'
 import { formatTime, formatWeddingDate } from '../../lib/format'
@@ -46,6 +46,9 @@ export default function DaySchedulePage() {
           <>
             <Link to={`/cronograma/imprimir?${printParams}`} className={buttonClass({ variant: 'secondary' })}>
               <Printer className="size-4" /> Imprimir / PDF
+            </Link>
+            <Link to="/cronograma/coordinador" className={buttonClass({ variant: 'secondary' })}>
+              <ClipboardList className="size-4" /> Hoja del coordinador
             </Link>
             <Button icon={<Plus className="size-4" />} onClick={() => setForm({})}>
               Momento

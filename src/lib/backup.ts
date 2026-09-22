@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { todayISO } from './format'
-import { guestGroup, rsvpStatus } from './labels'
+import { ageGroup, guestGroup, rsvpStatus } from './labels'
 import type { Guest, GuestMember, SeatingTable, TableName } from '../types/database'
 
 const db = supabase as unknown as SupabaseClient
@@ -61,6 +61,7 @@ export function guestsCsv(guests: Guest[], tables: SeatingTable[], members: Gues
   const header = [
     'Invitado',
     'Grupo',
+    'Edad',
     'Confirmación',
     'Acompañantes permitidos',
     'Acompañantes confirmados',
@@ -75,13 +76,22 @@ export function guestsCsv(guests: Guest[], tables: SeatingTable[], members: Gues
   ]
   const rows = guests.map((g) => {
     const own = members.filter((m) => m.guest_id === g.id)
-    const names = own.map((m) => `${m.name}${m.attending === true ? ' (sí)' : m.attending === false ? ' (no)' : ''}`)
+    const names = own.map((m) => {
+      const notes = [
+        m.attending === true ? 'sí' : m.attending === false ? 'no' : '',
+        m.age_group !== 'adulto' ? ageGroup[m.age_group].toLowerCase() : '',
+      ]
+        .filter(Boolean)
+        .join(', ')
+      return notes ? `${m.name} (${notes})` : m.name
+    })
     const dietary = [g.dietary, ...own.filter((m) => m.dietary).map((m) => `${m.name}: ${m.dietary}`)]
       .filter(Boolean)
       .join(' | ')
     return [
       g.name,
       guestGroup[g.guest_group],
+      ageGroup[g.age_group],
       rsvpStatus[g.rsvp_status].label,
       g.plus_ones_allowed,
       g.plus_ones_confirmed,

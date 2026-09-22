@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { summarizeBudget, upcomingPayments, vendorBookedCost } from '../../src/lib/budget'
+import { summarizeBudget, upcomingPayments, vendorBalances, vendorBookedCost } from '../../src/lib/budget'
 import { category, payment, vendor } from './factories'
 
 describe('vendorBookedCost', () => {
@@ -90,5 +90,29 @@ describe('upcomingPayments', () => {
       payment({ category_id: 'c', amount: 1, date: '2026-09-01', is_paid: true }),
     ])
     expect(list.map((p) => p.date)).toEqual(['2026-10-01', '2026-12-01'])
+  })
+})
+
+describe('vendorBalances', () => {
+  it('calcula el saldo de los proveedores reservados y lista sus pagos programados', () => {
+    const foto = vendor({ name: 'Foto', status: 'reservado', final_cost: 3_000_000 })
+    const dj = vendor({ name: 'DJ', status: 'pagado', quoted_cost: 2_000_000 })
+    const flores = vendor({ name: 'Flores', status: 'reservado', quoted_cost: 500_000 })
+    const cotizando = vendor({ name: 'Otro', status: 'cotizando', quoted_cost: 1 })
+    const balances = vendorBalances(
+      [foto, dj, flores, cotizando],
+      [
+        payment({ category_id: 'c', vendor_id: foto.id, amount: 1_000_000 }),
+        payment({ category_id: 'c', vendor_id: foto.id, amount: 2_000_000, date: '2027-05-15', is_paid: false }),
+        payment({ category_id: 'c', vendor_id: flores.id, amount: 600_000 }),
+      ],
+    )
+    expect(balances.map((b) => b.vendor.name)).toEqual(['Foto', 'DJ', 'Flores'])
+    expect(balances[0]).toMatchObject({ cost: 3_000_000, paid: 1_000_000, pending: 2_000_000 })
+    expect(balances[0].scheduled.map((p) => p.date)).toEqual(['2027-05-15'])
+    // Marcado como pagado aunque no haya pagos registrados
+    expect(balances[1]).toMatchObject({ cost: 2_000_000, paid: 0, pending: 0 })
+    // Pagaron más de lo cotizado: el costo real es lo pagado
+    expect(balances[2]).toMatchObject({ cost: 600_000, paid: 600_000, pending: 0 })
   })
 })

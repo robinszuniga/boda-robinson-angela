@@ -5,18 +5,19 @@ import { Bus, Copy, MessageSquareQuote, Music, Plus, Trash2, X } from 'lucide-re
 import { guestMembersApi, guestsApi, seatingTablesApi } from '../../lib/api'
 import { attempt } from '../../lib/attempt'
 import { formatDate } from '../../lib/format'
-import { guestGroup, options, rsvpStatus } from '../../lib/labels'
+import { ageGroup, guestGroup, options, rsvpStatus } from '../../lib/labels'
 import { Button, IconButton } from '../../components/ui/Button'
 import { Field, FormGrid, Input, Select, Textarea } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
 import { cn } from '../../components/ui/cn'
 import { useConfirm } from '../../components/ui/Confirm'
-import type { Guest, GuestGroup, GuestMember, RsvpStatus } from '../../types/database'
+import type { AgeGroup, Guest, GuestGroup, GuestMember, RsvpStatus } from '../../types/database'
 import { copyRsvpLink, rsvpUrl } from './rsvpLinks'
 
 interface FormValues {
   name: string
   guest_group: GuestGroup
+  age_group: AgeGroup
   phone: string
   email: string
   plus_ones_allowed: number
@@ -33,6 +34,7 @@ interface DraftMember {
   name: string
   attending: boolean | null
   dietary: string
+  age_group: AgeGroup
 }
 
 let draftSeq = 0
@@ -54,7 +56,14 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
   const [drafts, setDrafts] = useState<DraftMember[] | null>(null)
   const members: DraftMember[] =
     drafts ??
-    existing.map((m) => ({ key: m.id, id: m.id, name: m.name, attending: m.attending, dietary: m.dietary ?? '' }))
+    existing.map((m) => ({
+      key: m.id,
+      id: m.id,
+      name: m.name,
+      attending: m.attending,
+      dietary: m.dietary ?? '',
+      age_group: m.age_group,
+    }))
   const [newMember, setNewMember] = useState('')
 
   const {
@@ -66,6 +75,7 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
     defaultValues: {
       name: guest?.name ?? '',
       guest_group: guest?.guest_group ?? 'amigos',
+      age_group: guest?.age_group ?? 'adulto',
       phone: guest?.phone ?? '',
       email: guest?.email ?? '',
       plus_ones_allowed: guest?.plus_ones_allowed ?? 0,
@@ -85,7 +95,10 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
   const addMember = () => {
     const name = newMember.trim()
     if (!name) return
-    editMembers([...members, { key: draftKey(), name, attending: status === 'confirmado' ? true : null, dietary: '' }])
+    editMembers([
+      ...members,
+      { key: draftKey(), name, attending: status === 'confirmado' ? true : null, dietary: '', age_group: 'adulto' },
+    ])
     setNewMember('')
   }
 
@@ -104,6 +117,7 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
     const values = {
       name: v.name.trim(),
       guest_group: v.guest_group,
+      age_group: v.age_group,
       phone: v.phone.trim() || null,
       email: v.email.trim() || null,
       plus_ones_allowed: allowedN,
@@ -133,7 +147,13 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
       const ops: Promise<unknown>[] = []
       for (const m of existing) if (!keep.has(m.id)) ops.push(removeMember.mutateAsync(m.id))
       clean.forEach((m, i) => {
-        const row = { name: m.name, attending: attendingOf(m), dietary: m.dietary.trim() || null, sort_order: i }
+        const row = {
+          name: m.name,
+          attending: attendingOf(m),
+          dietary: m.dietary.trim() || null,
+          age_group: m.age_group,
+          sort_order: i,
+        }
         ops.push(m.id ? updateMember.mutateAsync({ id: m.id, values: row }) : createMember.mutateAsync({ ...row, guest_id: guestId! }))
       })
       if (!(await attempt(Promise.all(ops)))) return
@@ -228,6 +248,17 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
               </Select>
             )}
           </Field>
+          <Field label="Edad" hint="Para el catering y las mesas">
+            {(id) => (
+              <Select id={id} {...register('age_group')}>
+                {options(ageGroup).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
           <Field label="Confirmación (RSVP)">
             {(id) => (
               <Select id={id} {...register('rsvp_status')}>
@@ -267,49 +298,72 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
         <fieldset className="rounded-xl border border-line p-4">
           <legend className="px-1 text-sm font-medium">Acompañantes con nombre</legend>
           <p className="mb-3 text-xs text-muted">
-            Opcional. Útil para familias: cada persona puede tener su propia restricción alimentaria y el invitado marca
-            quiénes vienen.
+            Opcional. Útil para familias: cada persona tiene su edad y su restricción alimentaria, y el invitado marca
+            quiénes vienen. Si vienen niños, agrégalos aquí para que cuenten como niños.
           </p>
           {members.length > 0 && (
             <ul className="mb-3 flex flex-col gap-2">
-              {members.map((m, i) => (
-                <li
-                  key={m.key}
-                  className={cn(
-                    'grid items-center gap-2',
-                    status === 'confirmado' ? 'grid-cols-[auto_1fr_7rem_auto]' : 'grid-cols-[1fr_7rem_auto]',
-                  )}
-                >
-                  {status === 'confirmado' && (
-                    <input
-                      type="checkbox"
-                      className="size-4 accent-brand-600"
-                      aria-label={`${m.name} asiste`}
-                      title="Asiste"
-                      checked={m.attending !== false}
-                      onChange={(e) =>
-                        editMembers(members.map((x, j) => (j === i ? { ...x, attending: e.target.checked } : x)))
-                      }
+              {members.map((m, i) => {
+                const edit = (patch: Partial<DraftMember>) =>
+                  editMembers(members.map((x, j) => (j === i ? { ...x, ...patch } : x)))
+                return (
+                  <li
+                    key={m.key}
+                    className={cn(
+                      'grid items-center gap-2',
+                      status === 'confirmado'
+                        ? 'grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_10rem_8rem_auto]'
+                        : 'grid-cols-[1fr_auto] sm:grid-cols-[1fr_10rem_8rem_auto]',
+                    )}
+                  >
+                    {status === 'confirmado' && (
+                      <input
+                        type="checkbox"
+                        className="size-4 accent-brand-600"
+                        aria-label={`${m.name} asiste`}
+                        title="Asiste"
+                        checked={m.attending !== false}
+                        onChange={(e) => edit({ attending: e.target.checked })}
+                      />
+                    )}
+                    <Input
+                      aria-label={`Nombre del acompañante ${i + 1}`}
+                      className="h-9"
+                      value={m.name}
+                      onChange={(e) => edit({ name: e.target.value })}
                     />
-                  )}
-                  <Input
-                    aria-label={`Nombre del acompañante ${i + 1}`}
-                    className="h-9"
-                    value={m.name}
-                    onChange={(e) => editMembers(members.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
-                  />
-                  <Input
-                    aria-label={`Restricción alimentaria de ${m.name}`}
-                    placeholder="Dieta"
-                    className="h-9"
-                    value={m.dietary}
-                    onChange={(e) => editMembers(members.map((x, j) => (j === i ? { ...x, dietary: e.target.value } : x)))}
-                  />
-                  <IconButton label={`Quitar a ${m.name}`} onClick={() => editMembers(members.filter((_, j) => j !== i))}>
-                    <X className="size-4" />
-                  </IconButton>
-                </li>
-              ))}
+                    <IconButton
+                      label={`Quitar a ${m.name}`}
+                      className="sm:order-last"
+                      onClick={() => editMembers(members.filter((_, j) => j !== i))}
+                    >
+                      <X className="size-4" />
+                    </IconButton>
+                    {/* En celular la edad y la dieta van en una segunda línea */}
+                    <div className={cn('col-span-2 flex gap-2 sm:contents', status === 'confirmado' ? 'col-start-2' : 'col-start-1')}>
+                      <Select
+                        aria-label={`Edad de ${m.name}`}
+                        className="h-9 flex-none basis-40"
+                        value={m.age_group}
+                        onChange={(e) => edit({ age_group: e.target.value as AgeGroup })}
+                      >
+                        {options(ageGroup).map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </Select>
+                      <Input
+                        aria-label={`Restricción alimentaria de ${m.name}`}
+                        placeholder="Dieta"
+                        className="h-9 min-w-0 flex-1"
+                        value={m.dietary}
+                        onChange={(e) => edit({ dietary: e.target.value })}
+                      />
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
           )}
           <div className="flex gap-2">

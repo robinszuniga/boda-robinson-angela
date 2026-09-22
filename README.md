@@ -12,11 +12,12 @@ App web para planear la boda (mayo 2027): presupuesto, proveedores, comparador, 
 | `/presupuesto` | Categorías con estimado vs. comprometido, abonos y pagos programados, gráficos y alerta de sobrecosto |
 | `/proveedores` | Ficha de cada proveedor: contacto, costos, pagos y contratos adjuntos |
 | `/comparador` | Hasta 4 opciones de una categoría lado a lado; "Reservar este" descarta las demás |
-| `/invitados` | Lista con grupo, acompañantes (con o sin nombre), RSVP, dieta y mesa; link por invitado para copiar, enviar por WhatsApp o imprimir como QR; recordatorio a pendientes |
+| `/invitados` | Lista con grupo, edad (niños y adultos mayores), acompañantes (con o sin nombre), RSVP, dieta y mesa; link por invitado para copiar, enviar por WhatsApp o imprimir como QR; recordatorio a pendientes |
 | `/invitados/qr` | Hoja imprimible con el QR de cada invitado y tarjetas del álbum de fotos para las mesas |
-| `/mesas` | Arrastrar invitados a las mesas (o tocarlos para elegir la mesa), ocupación y vínculos "juntos/separados" |
-| `/tareas` | Plantilla de 53 tareas por etapa (incluye trámite civil y plan B de lluvia), tablero kanban y lista por etapa |
+| `/mesas` | Arrastrar invitados a las mesas (o tocarlos para elegir la mesa), ocupación, niños y adultos mayores por mesa y vínculos "juntos/separados" |
+| `/tareas` | Plantilla de 74 tareas por etapa (incluye trámite civil, plan B de lluvia, cortejo y lo de después de la boda), tablero kanban y lista por etapa |
 | `/cronograma` | Minuto a minuto del día, vista para imprimir o guardar en PDF por proveedor y canciones pedidas para el DJ |
+| `/cronograma/coordinador` | Hoja para la persona de confianza: personas clave, cronograma, teléfonos de proveedores, pagos pendientes, conteo de invitados por edad y restricciones alimentarias |
 | `/documentos` | Contratos, cotizaciones, facturas e inspiración (bucket privado) |
 | `/regalos` | Lista de regalos (artículos o aportes en efectivo) y quién los apartó |
 | `/agradecimientos` | A quién ya se le agradeció, sobres recibidos (monto privado) y mensajes de agradecimiento con plantilla |
@@ -28,7 +29,7 @@ Los montos están en pesos colombianos y las fechas en hora de Bogotá.
 ## 1. Crear el proyecto en Supabase (una sola vez)
 
 1. Entra a [supabase.com](https://supabase.com), crea un proyecto gratis y elige la región **South America (São Paulo)**.
-2. Abre **SQL Editor → New query** y pega todo el contenido de [`supabase/setup.sql`](supabase/setup.sql). **Antes de ejecutarlo, cambia los dos correos del bloque final** por los de ustedes (en minúsculas) y dale **Run**. Esto crea las tablas, la seguridad (RLS), las funciones del RSVP público, el bucket de documentos y las 10 categorías del presupuesto, y autoriza sus correos.
+2. Abre **SQL Editor → New query** y pega todo el contenido de [`supabase/setup.sql`](supabase/setup.sql). **Antes de ejecutarlo, cambia los dos correos del bloque final** por los de ustedes (en minúsculas) y dale **Run**. Esto crea las tablas, la seguridad (RLS), las funciones del RSVP público, el bucket de documentos y las 14 categorías del presupuesto, y autoriza sus correos.
 3. En **Authentication → Users → Add user → Create new user** crea los dos usuarios con esos mismos correos y marca **Auto Confirm User**.
 4. En **Authentication → Sign In / Providers** desactiva **Allow new users to sign up**, para que nadie más pueda registrarse.
 5. En **Project Settings → API** copia la **Project URL** y la **anon / publishable key**.

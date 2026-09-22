@@ -10,6 +10,7 @@ export type TaskStatus = 'por_hacer' | 'en_proceso' | 'listo'
 export type TaskPriority = 'alta' | 'media' | 'baja'
 export type DocumentCategory = 'contrato' | 'cotizacion' | 'factura' | 'inspiracion' | 'otro'
 export type GiftKind = 'articulo' | 'efectivo'
+export type AgeGroup = 'adulto' | 'nino' | 'mayor'
 
 export type WeddingSettings = {
   id: number
@@ -32,6 +33,7 @@ export type WeddingSettings = {
   envelope_rain: boolean
   ask_song: boolean
   offer_transport: boolean
+  coordinator_notes: string | null
   updated_at: string
 }
 
@@ -110,6 +112,7 @@ export type Guest = {
   song_request: string | null
   needs_transport: boolean
   rsvp_reminded_at: string | null
+  age_group: AgeGroup
   created_at: string
   updated_at: string
 }
@@ -120,6 +123,7 @@ export type GuestMember = {
   name: string
   attending: boolean | null
   dietary: string | null
+  age_group: AgeGroup
   sort_order: number
   created_at: string
 }
@@ -328,6 +332,7 @@ export type Database = {
       task_priority: TaskPriority
       document_category: DocumentCategory
       gift_kind: GiftKind
+      age_group: AgeGroup
     }
     CompositeTypes: { [_ in never]: never }
   }

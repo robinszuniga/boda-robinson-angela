@@ -92,6 +92,34 @@ export function summarizeBudget(
   }
 }
 
+export interface VendorBalance {
+  vendor: Vendor
+  /** Lo que se le debe en total: costo reservado, o la suma de sus pagos si es mayor */
+  cost: number
+  paid: number
+  pending: number
+  /** Pagos programados que aún no se han hecho, los más próximos primero */
+  scheduled: Payment[]
+}
+
+/** Saldo de cada proveedor reservado o pagado. Si está marcado "Pagado" no se le debe nada. */
+export function vendorBalances(vendors: Vendor[], payments: Payment[]): VendorBalance[] {
+  return vendors
+    .filter((v) => BOOKED.includes(v.status))
+    .map((vendor) => {
+      const own = payments.filter((p) => p.vendor_id === vendor.id)
+      const cost = Math.max(vendorBookedCost(vendor), own.reduce((s, p) => s + p.amount, 0))
+      const paid = own.filter((p) => p.is_paid).reduce((s, p) => s + p.amount, 0)
+      return {
+        vendor,
+        cost,
+        paid,
+        pending: vendor.status === 'pagado' ? 0 : Math.max(cost - paid, 0),
+        scheduled: own.filter((p) => !p.is_paid).sort((a, b) => a.date.localeCompare(b.date)),
+      }
+    })
+}
+
 /** Pagos programados sin hacer (incluye vencidos), los más próximos primero */
 export function upcomingPayments(payments: Payment[], limit = 5): Payment[] {
   return payments

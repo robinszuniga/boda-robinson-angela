@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { guestMembersApi, guestsApi, seatingTablesApi, useSettings } from '../../lib/api'
 import { headcount } from '../../lib/seating'
+import { ageSummary, confirmedByAge, partyAges } from '../../lib/ages'
 import { guestGroup, options, rsvpStatus } from '../../lib/labels'
 import { Button, ButtonLink, IconButton } from '../../components/ui/Button'
 import { EmptyState, ErrorState, LoadingState, PageHeader, ProgressBar, Stat } from '../../components/ui/Display'
@@ -26,6 +27,8 @@ import { BulkGuestsModal } from './BulkGuestsModal'
 import { copyRsvpLink, invitationWhatsapp } from './rsvpLinks'
 import { RemindersModal } from './RemindersModal'
 import { GuestQrModal } from './GuestQrModal'
+
+type AgeFilter = '' | 'nino' | 'mayor'
 
 const rsvpSelectTone: Record<RsvpStatus, string> = {
   pendiente: 'border-amber-200 bg-amber-50 text-amber-900',
@@ -46,6 +49,7 @@ export default function GuestsPage() {
   const [search, setSearch] = useState('')
   const [group, setGroup] = useState<GuestGroup | ''>('')
   const [status, setStatus] = useState<RsvpStatus | ''>('')
+  const [age, setAge] = useState<AgeFilter>('')
 
   const queries = [settings, guests, tables, members]
   const failed = queries.find((q) => q.isError)
@@ -58,6 +62,8 @@ export default function GuestsPage() {
   const tableNumber = new Map((tables.data ?? []).map((t) => [t.id, t.number]))
   const attendingIds = new Set(all.filter((g) => g.rsvp_status !== 'rechazado').map((g) => g.id))
   const membersOf = (id: string) => (members.data ?? []).filter((m) => m.guest_id === id)
+  const agesOf = new Map(all.map((g) => [g.id, partyAges(g, members.data ?? [])]))
+  const confirmedAges = ageSummary(confirmedByAge(all, members.data ?? []))
   // Personas con restricción: invitados + acompañantes con nombre que no dijeron que no van
   const dietaryCount =
     all.filter((g) => g.dietary && attendingIds.has(g.id)).length +
@@ -68,6 +74,7 @@ export default function GuestsPage() {
     (g) =>
       (!group || g.guest_group === group) &&
       (!status || g.rsvp_status === status) &&
+      (!age || (agesOf.get(g.id)?.[age] ?? 0) > 0) &&
       (!term || `${g.name} ${g.phone ?? ''} ${g.notes ?? ''}`.toLowerCase().includes(term)),
   )
 
@@ -123,6 +130,7 @@ export default function GuestsPage() {
             label="Confirmados vs capacidad"
           />
           <p className="mt-2 text-xs text-muted">
+            {confirmedAges && <>Entre los confirmados: {confirmedAges}. </>}
             Si todos los pendientes vienen: {people.expectedPeople} personas
             {capacity > 0 && people.expectedPeople > capacity && (
               <span className="font-medium text-red-700"> · supera la capacidad del lugar</span>
@@ -138,12 +146,12 @@ export default function GuestsPage() {
         <Stat icon={<UtensilsCrossed className="size-4" />} label="Con restricción alimentaria" value={dietaryCount} />
       </div>
 
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row">
-        <div className="relative flex-1">
+      <div className="mb-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-[1fr_12rem_11rem_12rem]">
+        <div className="relative sm:col-span-3 xl:col-span-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
           <Input aria-label="Buscar invitado" placeholder="Buscar…" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <Select aria-label="Filtrar por grupo" className="sm:w-48" value={group} onChange={(e) => setGroup(e.target.value as GuestGroup | '')}>
+        <Select aria-label="Filtrar por grupo" value={group} onChange={(e) => setGroup(e.target.value as GuestGroup | '')}>
           <option value="">Todos los grupos</option>
           {options(guestGroup).map((o) => (
             <option key={o.value} value={o.value}>
@@ -151,13 +159,18 @@ export default function GuestsPage() {
             </option>
           ))}
         </Select>
-        <Select aria-label="Filtrar por confirmación" className="sm:w-44" value={status} onChange={(e) => setStatus(e.target.value as RsvpStatus | '')}>
+        <Select aria-label="Filtrar por confirmación" value={status} onChange={(e) => setStatus(e.target.value as RsvpStatus | '')}>
           <option value="">Toda confirmación</option>
           {options(rsvpStatus).map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
           ))}
+        </Select>
+        <Select aria-label="Filtrar por edad" value={age} onChange={(e) => setAge(e.target.value as AgeFilter)}>
+          <option value="">Todas las edades</option>
+          <option value="nino">Con niños</option>
+          <option value="mayor">Con adultos mayores</option>
         </Select>
       </div>
 
@@ -178,6 +191,7 @@ export default function GuestsPage() {
             {filtered.map((g) => {
               const companions =
                 g.rsvp_status === 'confirmado' ? g.plus_ones_confirmed : g.plus_ones_allowed
+              const ages = ageSummary(agesOf.get(g.id)!)
               return (
                 <li key={g.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
                   <button type="button" onClick={() => setForm({ guest: g })} className="min-w-[10rem] flex-1 text-left">
@@ -191,6 +205,7 @@ export default function GuestsPage() {
                         ` · con ${membersOf(g.id)
                           .map((m) => (m.attending === false ? `${m.name} (no va)` : m.name))
                           .join(', ')}`}
+                      {ages && ` · ${ages}`}
                       {g.table_id && tableNumber.has(g.table_id) && ` · Mesa ${tableNumber.get(g.table_id)}`}
                       {g.dietary && ` · ${g.dietary}`}
                       {g.song_request && <Music className="ml-1.5 inline size-3 -translate-y-px" aria-label={`Pidió: ${g.song_request}`} />}
