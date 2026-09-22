@@ -77,6 +77,8 @@ describe('headcount', () => {
     ])
     expect(h).toEqual({
       invitations: 3,
+      invitedPeople: 7,
+      invitedCompanions: 4,
       confirmedGuests: 1,
       pendingGuests: 1,
       declinedGuests: 1,

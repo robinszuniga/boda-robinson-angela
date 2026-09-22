@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { guestMembersApi, guestsApi, seatingTablesApi, useSettings } from '../../lib/api'
 import { headcount } from '../../lib/seating'
+import { plural } from '../../lib/format'
 import { ageSummary, confirmedByAge, partyAges } from '../../lib/ages'
 import { guestGroup, options, rsvpStatus } from '../../lib/labels'
 import { Button, ButtonLink, IconButton } from '../../components/ui/Button'
@@ -114,7 +115,14 @@ export default function GuestsPage() {
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="col-span-2 rounded-2xl border border-line bg-white p-4 shadow-xs">
+        <Stat
+          icon={<Users className="size-4" />}
+          label="Personas invitadas"
+          value={people.invitedPeople}
+          sub={`${plural(people.invitations, 'invitación', 'invitaciones')} + ${plural(people.invitedCompanions, 'acompañante', 'acompañantes')}`}
+        />
+        {/* En celular va debajo, a lo ancho; en pantalla grande, en el medio */}
+        <div className="order-last col-span-2 rounded-2xl border border-line bg-white p-4 shadow-xs lg:order-none">
           <div className="flex items-baseline justify-between">
             <span className="text-sm text-muted">Personas confirmadas</span>
             <span className="text-2xl font-semibold tabular-nums">
@@ -130,6 +138,10 @@ export default function GuestsPage() {
             label="Confirmados vs capacidad"
           />
           <p className="mt-2 text-xs text-muted">
+            Invitaciones: {people.confirmedGuests} sí · {plural(people.pendingGuests, 'pendiente', 'pendientes')} ·{' '}
+            {people.declinedGuests} no
+          </p>
+          <p className="mt-0.5 text-xs text-muted">
             {confirmedAges && <>Entre los confirmados: {confirmedAges}. </>}
             Si todos los pendientes vienen: {people.expectedPeople} personas
             {capacity > 0 && people.expectedPeople > capacity && (
@@ -137,12 +149,6 @@ export default function GuestsPage() {
             )}
           </p>
         </div>
-        <Stat
-          icon={<Users className="size-4" />}
-          label="Invitaciones"
-          value={people.invitations}
-          sub={`${people.confirmedGuests} sí · ${people.pendingGuests} ${people.pendingGuests === 1 ? 'pendiente' : 'pendientes'} · ${people.declinedGuests} no`}
-        />
         <Stat icon={<UtensilsCrossed className="size-4" />} label="Con restricción alimentaria" value={dietaryCount} />
       </div>
 

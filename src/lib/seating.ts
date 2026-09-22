@@ -72,6 +72,9 @@ export function linkConflicts(links: GuestLink[], guests: Guest[]): LinkConflict
 
 export interface Headcount {
   invitations: number
+  /** Toda la lista: cada invitado con todos sus acompañantes permitidos, responda lo que responda */
+  invitedPeople: number
+  invitedCompanions: number
   confirmedGuests: number
   pendingGuests: number
   declinedGuests: number
@@ -88,8 +91,11 @@ export function headcount(guests: Guest[]): Headcount {
   const pending = guests.filter((g) => g.rsvp_status === 'pendiente')
   const confirmedPeople = confirmed.reduce((s, g) => s + seatsFor(g), 0)
   const pendingPeople = pending.reduce((s, g) => s + seatsFor(g), 0)
+  const invitedCompanions = guests.reduce((s, g) => s + g.plus_ones_allowed, 0)
   return {
     invitations: guests.length,
+    invitedPeople: guests.length + invitedCompanions,
+    invitedCompanions,
     confirmedGuests: confirmed.length,
     pendingGuests: pending.length,
     declinedGuests: guests.length - confirmed.length - pending.length,

@@ -230,7 +230,13 @@ export default function DashboardPage() {
         <Card className="lg:col-span-2">
           <CardHeader
             title="Confirmaciones"
-            subtitle={`${plural(people.invitations, 'invitación', 'invitaciones')} · hasta ${plural(people.expectedPeople, 'persona', 'personas')} si todos los pendientes vienen`}
+            subtitle={
+              `${plural(people.invitedPeople, 'persona invitada', 'personas invitadas')} ` +
+              `(${plural(people.invitations, 'invitación', 'invitaciones')} + ${plural(people.invitedCompanions, 'acompañante', 'acompañantes')})` +
+              (people.expectedPeople !== people.invitedPeople
+                ? ` · hasta ${plural(people.expectedPeople, 'persona', 'personas')} si todos los pendientes vienen`
+                : '')
+            }
             action={<ButtonLink to="/invitados" variant="ghost" size="sm">Invitados</ButtonLink>}
           />
           <div className="grid gap-4 px-5 pb-5 sm:grid-cols-3">
