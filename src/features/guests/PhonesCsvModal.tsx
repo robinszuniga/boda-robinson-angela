@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { AlertCircle, Download, Upload } from 'lucide-react'
 import { attempt } from '../../lib/attempt'
-import { supabase } from '../../lib/supabase'
+import { updateGuestsEach } from '../../lib/guestBulk'
 import { downloadCsv } from '../../lib/download'
 import { todayISO } from '../../lib/format'
 import { phonesCsv, readPhonesCsv, type PhoneRow } from '../../lib/phoneCsv'
@@ -32,18 +32,8 @@ export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: 
   const save = async () => {
     if (!result || result.updates.length === 0) return
     setSaving(true)
-    // De a 10 para no disparar 144 peticiones a la vez
     const ok = await attempt(
-      (async () => {
-        for (let i = 0; i < result.updates.length; i += 10) {
-          const chunk = result.updates.slice(i, i + 10)
-          const results = await Promise.all(
-            chunk.map((u) => supabase.from('guests').update({ phone: u.phone }).eq('id', u.id)),
-          )
-          const failed = results.find((r) => r.error)
-          if (failed?.error) throw failed.error
-        }
-      })(),
+      updateGuestsEach(result.updates.map((u) => ({ id: u.id, values: { phone: u.phone } }))),
     )
     setSaving(false)
     await qc.invalidateQueries({ queryKey: tableKey('guests') })

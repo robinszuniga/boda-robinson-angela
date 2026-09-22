@@ -10,6 +10,8 @@ export interface PlannedTable {
   used: number
   /** Grupo que ocupa la mesa, null si está vacía */
   group: GuestGroup | null
+  /** Círculo que ocupa la mesa; null si está vacía o si quedaron mezclados */
+  circle: string | null
 }
 
 export interface SeatingPlan {
@@ -71,13 +73,16 @@ export function planSeatingByGroup(
   const sortedTables = [...tables].sort((a, b) => a.number - b.number)
 
   const planned = new Map<string, PlannedTable>(
-    sortedTables.map((table) => [table.id, { table, guests: [], used: 0, group: null }]),
+    sortedTables.map((table) => [table.id, { table, guests: [], used: 0, group: null, circle: null }]),
   )
-  const seatAt = (tableId: string, group: Guest[]) => {
+  const circleOf = (guest: Guest) => guest.circle?.trim() || null
+  const seatAt = (tableId: string, party: Guest[]) => {
     const target = planned.get(tableId)!
-    target.guests.push(...group)
-    target.used += group.reduce((s, g) => s + seatsFor(g), 0)
-    target.group = group[0].guest_group
+    const circle = circleOf(party[0])
+    target.circle = target.guests.length === 0 || target.circle === circle ? circle : null
+    target.guests.push(...party)
+    target.used += party.reduce((s, g) => s + seatsFor(g), 0)
+    target.group = party[0].guest_group
   }
 
   // Los que ya tienen mesa se quedan donde están (salvo que se rehaga todo)
@@ -96,24 +101,51 @@ export function planSeatingByGroup(
   const groupsOf = (list: Guest[]) => [...new Set(list.map((g) => g.guest_group))]
   const byGroup = GROUP_ORDER.filter((group) => pending.some((g) => g.guest_group === group))
 
+  // Los círculos se atienden en el orden en que aparecen en la lista
+  const circleRank = new Map<string, number>()
+  for (const g of attending) {
+    const circle = circleOf(g)
+    if (circle && !circleRank.has(circle)) circleRank.set(circle, circleRank.size)
+  }
+  const rank = (party: Guest[]) => {
+    const circle = circleOf(party[0])
+    return circle ? (circleRank.get(circle) ?? 0) : circleRank.size
+  }
+
   for (const group of byGroup) {
     const members = pending.filter((g) => g.guest_group === group)
     const parties = clusters(members, links)
       .map((party) => ({ party, seats: party.reduce((s, g) => s + seatsFor(g), 0) }))
-      .sort((a, b) => b.seats - a.seats || a.party[0].name.localeCompare(b.party[0].name, 'es'))
+      // Primero por círculo; dentro del círculo, las invitaciones grandes y
+      // luego en el orden en que se agregaron a la lista
+      .sort(
+        (a, b) =>
+          rank(a.party) - rank(b.party) ||
+          b.seats - a.seats ||
+          a.party[0].created_at.localeCompare(b.party[0].created_at) ||
+          a.party[0].name.localeCompare(b.party[0].name, 'es'),
+      )
 
     for (const { party, seats } of parties) {
       const forbidden = new Set(party.flatMap((g) => [...(apart.get(g.id) ?? [])]))
-      // Primero se terminan de llenar las mesas que ya tienen gente de este grupo
+      const circle = circleOf(party[0])
+      const fits = (table: SeatingTable) => {
+        const t = planned.get(table.id)!
+        return table.capacity - t.used >= seats && !t.guests.some((g) => forbidden.has(g.id))
+      }
       const started = sortedTables.filter((table) => {
         const t = planned.get(table.id)!
         return t.guests.length > 0 && t.group === group && groupsOf(t.guests).length === 1
       })
       const empty = sortedTables.filter((table) => planned.get(table.id)!.guests.length === 0)
-      const target = [...started, ...empty].find((table) => {
-        const t = planned.get(table.id)!
-        return table.capacity - t.used >= seats && !t.guests.some((g) => forbidden.has(g.id))
-      })
+      // Con círculo: su mesa, luego una vacía y, de último, otra del mismo
+      // grupo aunque mezcle círculos. Sin círculo: primero las mesas empezadas
+      // que tampoco tienen círculo, para no meterse en un círculo ajeno.
+      const withCircle = (value: string | null) =>
+        started.filter((table) => planned.get(table.id)!.circle === value)
+      const target = (circle ? [...withCircle(circle), ...empty, ...started] : [...withCircle(null), ...empty, ...started]).find(
+        fits,
+      )
       if (target) seatAt(target.id, party)
       else unseated.push(...party)
     }

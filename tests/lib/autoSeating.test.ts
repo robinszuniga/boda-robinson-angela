@@ -77,6 +77,46 @@ describe('planSeatingByGroup', () => {
     expect(namesAt(plan, 1)).toEqual(['Abuela', 'Primo'])
   })
 
+  it('sienta junto a los del mismo círculo y usa otra mesa para el otro círculo', () => {
+    const t1 = table({ number: 1, capacity: 4 })
+    const t2 = table({ number: 2, capacity: 4 })
+    const guests = [
+      guest({ name: 'Ana', guest_group: 'amigos', circle: 'Universidad' }),
+      guest({ name: 'Beto', guest_group: 'amigos', circle: 'Colegio' }),
+      guest({ name: 'Caro', guest_group: 'amigos', circle: 'Universidad' }),
+      guest({ name: 'Dani', guest_group: 'amigos', circle: 'Colegio' }),
+    ]
+    const plan = planSeatingByGroup([t1, t2], guests, [])
+    expect(namesAt(plan, 1)).toEqual(['Ana', 'Caro'])
+    expect(namesAt(plan, 2)).toEqual(['Beto', 'Dani'])
+    expect(plan.tables.map((t) => t.circle)).toEqual(['Universidad', 'Colegio'])
+  })
+
+  it('si no quedan mesas libres, mezcla círculos del mismo grupo antes que dejar a alguien sin mesa', () => {
+    const t1 = table({ number: 1, capacity: 3 })
+    const guests = [
+      guest({ name: 'Ana', guest_group: 'amigos', circle: 'Universidad' }),
+      guest({ name: 'Beto', guest_group: 'amigos', circle: 'Colegio' }),
+    ]
+    const plan = planSeatingByGroup([t1], guests, [])
+    expect(namesAt(plan, 1)).toEqual(['Ana', 'Beto'])
+    expect(plan.tables[0].circle).toBeNull()
+    expect(plan.unseated).toEqual([])
+  })
+
+  it('sin círculo, sigue el orden en que se agregaron a la lista y no el alfabético', () => {
+    const t1 = table({ number: 1, capacity: 2 })
+    const t2 = table({ number: 2, capacity: 2 })
+    const guests = [
+      guest({ name: 'Zulma', guest_group: 'trabajo', created_at: '2026-09-01T10:00:00Z' }),
+      guest({ name: 'Andrés', guest_group: 'trabajo', created_at: '2026-09-05T10:00:00Z' }),
+      guest({ name: 'Yolanda', guest_group: 'trabajo', created_at: '2026-09-01T10:01:00Z' }),
+    ]
+    const plan = planSeatingByGroup([t1, t2], guests, [])
+    expect(namesAt(plan, 1)).toEqual(['Zulma', 'Yolanda'])
+    expect(namesAt(plan, 2)).toEqual(['Andrés'])
+  })
+
   it('ignora a los que no asisten y reporta a quien no cupo', () => {
     const t1 = table({ number: 1, capacity: 2 })
     const guests = [

@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
 import { tableKey } from '../../lib/crud'
 import { attempt } from '../../lib/attempt'
 import { planSeatingByGroup } from '../../lib/autoSeating'
+import { updateGuestsEach } from '../../lib/guestBulk'
 import { seatsFor } from '../../lib/seating'
 import { guestGroup } from '../../lib/labels'
 import { plural } from '../../lib/format'
@@ -13,17 +13,6 @@ import { Button } from '../../components/ui/Button'
 import { Checkbox } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
 import type { Guest, GuestLink, SeatingTable } from '../../types/database'
-
-/** Guarda las mesas de a 10 para no disparar cientos de peticiones a la vez */
-async function saveTables(moves: { id: string; tableId: string | null }[]) {
-  for (let i = 0; i < moves.length; i += 10) {
-    const results = await Promise.all(
-      moves.slice(i, i + 10).map((m) => supabase.from('guests').update({ table_id: m.tableId }).eq('id', m.id)),
-    )
-    const failed = results.find((r) => r.error)
-    if (failed?.error) throw failed.error
-  }
-}
 
 /** Reparte a los invitados por grupo, con vista previa antes de aplicar */
 export function AutoSeatModal({
@@ -44,10 +33,10 @@ export function AutoSeatModal({
   const used = plan.tables.filter((t) => t.guests.length > 0)
 
   const apply = async () => {
-    const before = plan.moves.map((m) => ({ id: m.guest.id, tableId: m.guest.table_id }))
-    const after = plan.moves.map((m) => ({ id: m.guest.id, tableId: m.tableId }))
+    const before = plan.moves.map((m) => ({ id: m.guest.id, values: { table_id: m.guest.table_id } }))
+    const after = plan.moves.map((m) => ({ id: m.guest.id, values: { table_id: m.tableId } }))
     setSaving(true)
-    const ok = await attempt(saveTables(after))
+    const ok = await attempt(updateGuestsEach(after))
     setSaving(false)
     await qc.invalidateQueries({ queryKey: tableKey('guests') })
     if (!ok) return
@@ -55,7 +44,7 @@ export function AutoSeatModal({
       action: {
         label: 'Deshacer',
         onClick: async () => {
-          if (await attempt(saveTables(before))) toast.success('Se devolvieron las mesas como estaban')
+          if (await attempt(updateGuestsEach(before))) toast.success('Se devolvieron las mesas como estaban')
           await qc.invalidateQueries({ queryKey: tableKey('guests') })
         },
       },
@@ -115,7 +104,7 @@ export function AutoSeatModal({
                 </span>
                 <span className="shrink-0 text-xs text-muted tabular-nums">
                   {t.used}/{t.table.capacity}
-                  {t.group && ` · ${guestGroup[t.group]}`}
+                  {t.circle ? ` · ${t.circle}` : t.group ? ` · ${guestGroup[t.group]}` : ''}
                 </span>
               </div>
               <p className="text-xs text-muted">

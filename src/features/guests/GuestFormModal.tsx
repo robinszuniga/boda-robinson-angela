@@ -18,6 +18,7 @@ interface FormValues {
   name: string
   guest_group: GuestGroup
   age_group: AgeGroup
+  circle: string
   phone: string
   email: string
   plus_ones_allowed: number
@@ -42,6 +43,7 @@ const draftKey = () => `nuevo-${++draftSeq}`
 
 export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () => void }) {
   const tables = seatingTablesApi.useList()
+  const allGuests = guestsApi.useList()
   const allMembers = guestMembersApi.useList()
   const create = guestsApi.useCreate()
   const update = guestsApi.useUpdate()
@@ -50,6 +52,9 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
   const updateMember = guestMembersApi.useUpdate()
   const removeMember = guestMembersApi.useRemove()
   const confirm = useConfirm()
+  const circles = [
+    ...new Set((allGuests.data ?? []).map((g) => g.circle?.trim()).filter(Boolean) as string[]),
+  ].sort((a, b) => a.localeCompare(b, 'es'))
 
   const existing: GuestMember[] = guest ? (allMembers.data ?? []).filter((m) => m.guest_id === guest.id) : []
   // Los acompañantes se editan en borrador y se guardan junto con el invitado
@@ -76,6 +81,7 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
       name: guest?.name ?? '',
       guest_group: guest?.guest_group ?? 'amigos',
       age_group: guest?.age_group ?? 'adulto',
+      circle: guest?.circle ?? '',
       phone: guest?.phone ?? '',
       email: guest?.email ?? '',
       plus_ones_allowed: guest?.plus_ones_allowed ?? 0,
@@ -118,6 +124,7 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
       name: v.name.trim(),
       guest_group: v.guest_group,
       age_group: v.age_group,
+      circle: v.circle.trim() || null,
       phone: v.phone.trim() || null,
       email: v.email.trim() || null,
       plus_ones_allowed: allowedN,
@@ -257,6 +264,18 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
                   </option>
                 ))}
               </Select>
+            )}
+          </Field>
+          <Field label="Círculo" hint="Para sentarlos juntos: primos, universidad, trabajo…">
+            {(id) => (
+              <>
+                <Input id={id} list="circulos-ficha" maxLength={60} placeholder="Sin círculo" {...register('circle')} />
+                <datalist id="circulos-ficha">
+                  {circles.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
+              </>
             )}
           </Field>
           <Field label="Confirmación (RSVP)">

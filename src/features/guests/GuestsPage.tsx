@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 import {
   BellRing,
   Bus,
@@ -10,11 +11,16 @@ import {
   QrCode as QrIcon,
   Search,
   Send,
+  Sparkles,
+  SquareCheck,
   UserPlus,
   Users,
   UtensilsCrossed,
 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { guestMembersApi, guestsApi, seatingTablesApi, useSettings } from '../../lib/api'
+import { tableKey } from '../../lib/crud'
+import { attempt } from '../../lib/attempt'
 import { headcount } from '../../lib/seating'
 import { daysFromToday, plural } from '../../lib/format'
 import { ageSummary, confirmedByAge, partyAges } from '../../lib/ages'
@@ -29,6 +35,8 @@ import { BulkGuestsModal } from './BulkGuestsModal'
 import { copyRsvpLink, invitationWhatsapp } from './rsvpLinks'
 import { RemindersModal } from './RemindersModal'
 import { GuestQrModal } from './GuestQrModal'
+import { CirclesModal } from './CirclesModal'
+import { updateGuests } from '../../lib/guestBulk'
 
 type AgeFilter = '' | 'nino' | 'mayor'
 type SentFilter = '' | 'sin_enviar' | 'sin_responder'
@@ -54,6 +62,11 @@ export default function GuestsPage() {
   const [status, setStatus] = useState<RsvpStatus | ''>('')
   const [age, setAge] = useState<AgeFilter>('')
   const [sent, setSent] = useState<SentFilter>('')
+  const [circlesOpen, setCirclesOpen] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [circleInput, setCircleInput] = useState('')
+  const [assigning, setAssigning] = useState(false)
+  const qc = useQueryClient()
 
   const queries = [settings, guests, tables, members]
   const failed = queries.find((q) => q.isError)
@@ -81,8 +94,33 @@ export default function GuestsPage() {
       (!age || (agesOf.get(g.id)?.[age] ?? 0) > 0) &&
       (!sent ||
         (sent === 'sin_enviar' ? !g.invitation_sent_at : g.invitation_sent_at && g.rsvp_status === 'pendiente')) &&
-      (!term || `${g.name} ${g.phone ?? ''} ${g.notes ?? ''}`.toLowerCase().includes(term)),
+      (!term || `${g.name} ${g.phone ?? ''} ${g.notes ?? ''} ${g.circle ?? ''}`.toLowerCase().includes(term)),
   )
+
+  const circles = [...new Set(all.map((g) => g.circle?.trim()).filter(Boolean) as string[])].sort((a, b) =>
+    a.localeCompare(b, 'es'),
+  )
+  const toggleSelected = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  const assignCircle = async (value: string | null) => {
+    setAssigning(true)
+    const ok = await attempt(updateGuests([...selected], { circle: value }))
+    setAssigning(false)
+    await qc.invalidateQueries({ queryKey: tableKey('guests') })
+    if (!ok) return
+    toast.success(
+      value
+        ? `${plural(selected.size, 'invitado quedó', 'invitados quedaron')} en "${value}"`
+        : `${plural(selected.size, 'invitado se quedó', 'invitados se quedaron')} sin círculo`,
+    )
+    setSelected(new Set())
+    setCircleInput('')
+  }
 
   const changeStatus = (g: Guest, next: RsvpStatus) =>
     update.mutate({
@@ -112,6 +150,9 @@ export default function GuestsPage() {
             <ButtonLink to="/invitados/qr" variant="secondary" icon={<QrIcon className="size-4" />}>
               Códigos QR
             </ButtonLink>
+            <Button variant="secondary" icon={<Sparkles className="size-4" />} onClick={() => setCirclesOpen(true)}>
+              Círculos
+            </Button>
             <Button variant="secondary" icon={<ListPlus className="size-4" />} onClick={() => setBulk(true)}>
               Agregar varios
             </Button>
@@ -215,6 +256,13 @@ export default function GuestsPage() {
                 g.invitation_sent_at && g.rsvp_status === 'pendiente' ? -daysFromToday(g.invitation_sent_at) : null
               return (
                 <li key={g.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    aria-label={`Seleccionar a ${g.name}`}
+                    className="size-4 accent-brand-600"
+                    checked={selected.has(g.id)}
+                    onChange={() => toggleSelected(g.id)}
+                  />
                   <button type="button" onClick={() => setForm({ guest: g })} className="min-w-[10rem] flex-1 text-left">
                     <p className="font-medium hover:underline">
                       {g.name}
@@ -226,6 +274,7 @@ export default function GuestsPage() {
                         ` · con ${membersOf(g.id)
                           .map((m) => (m.attending === false ? `${m.name} (no va)` : m.name))
                           .join(', ')}`}
+                      {g.circle && ` · ${g.circle}`}
                       {ages && ` · ${ages}`}
                       {waiting != null &&
                         ` · invitada ${waiting === 0 ? 'hoy' : waiting === 1 ? 'ayer' : `hace ${waiting} días`}`}
@@ -272,6 +321,40 @@ export default function GuestsPage() {
               )
             })}
           </ul>
+          {selected.size > 0 && (
+            <div className="sticky bottom-3 z-10 mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white p-3 shadow-lg">
+              <span className="text-sm font-medium">
+                <SquareCheck className="-mt-0.5 mr-1 inline size-4 text-brand-600" />
+                {plural(selected.size, 'seleccionado', 'seleccionados')}
+              </span>
+              <Button size="sm" variant="ghost" onClick={() => setSelected(new Set(filtered.map((g) => g.id)))}>
+                Marcar los {filtered.length} de la lista
+              </Button>
+              <Input
+                aria-label="Círculo para los seleccionados"
+                list="circulos-existentes"
+                className="h-9 w-52"
+                placeholder="Círculo: primos, universidad…"
+                maxLength={60}
+                value={circleInput}
+                onChange={(e) => setCircleInput(e.target.value)}
+              />
+              <datalist id="circulos-existentes">
+                {circles.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+              <Button size="sm" disabled={!circleInput.trim() || assigning} onClick={() => assignCircle(circleInput.trim())}>
+                Asignar círculo
+              </Button>
+              <Button size="sm" variant="ghost" disabled={assigning} onClick={() => assignCircle(null)}>
+                Quitar círculo
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+                Cancelar
+              </Button>
+            </div>
+          )}
           <div className="mt-3 flex flex-wrap gap-2">
             <Button variant="secondary" icon={<ListPlus className="size-4" />} onClick={() => setBulk(true)}>
               Agregar varios
@@ -287,6 +370,7 @@ export default function GuestsPage() {
       {bulk && <BulkGuestsModal onClose={() => setBulk(false)} />}
       {reminders && <RemindersModal pending={pending} settings={settings.data} onClose={() => setReminders(false)} />}
       {qrGuest && <GuestQrModal guest={qrGuest} onClose={() => setQrGuest(null)} />}
+      {circlesOpen && <CirclesModal guests={all} onClose={() => setCirclesOpen(false)} />}
     </>
   )
 }
