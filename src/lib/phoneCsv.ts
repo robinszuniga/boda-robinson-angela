@@ -6,7 +6,9 @@ export const PHONE_CSV_HEADER = ['Código', 'Invitado', 'Grupo', 'Teléfono'] as
 
 function cell(value: unknown): string {
   const text = value == null ? '' : String(value)
-  return /[";\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+  // Excel ejecutaría como fórmula un texto que empiece por = + - @
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text
+  return /[";\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
 }
 
 /** Planilla para llenar los teléfonos en Excel: una fila por invitado */
@@ -48,7 +50,7 @@ export function parseCsv(text: string): string[][] {
   return rows.filter((r) => r.some((c) => c.trim()))
 }
 
-export type PhoneRowStatus = 'nuevo' | 'cambio' | 'igual' | 'sin_telefono' | 'invalido' | 'desconocido'
+export type PhoneRowStatus = 'nuevo' | 'cambio' | 'igual' | 'sin_telefono' | 'invalido' | 'desconocido' | 'repetido'
 
 export interface PhoneRow {
   guestId: string | null
@@ -94,11 +96,25 @@ export function readPhonesCsv(text: string, guests: Guest[]): PhoneImport {
   const byName = new Map<string, Guest>()
   for (const g of guests) if (!byName.has(key(g.name))) byName.set(key(g.name), g)
 
+  // Si dos filas caen en el mismo invitado (nombres repetidos sin código), no se adivina
+  const seen = new Set<string>()
   const rows = body.map((cells): PhoneRow => {
     const raw = (cells[phoneAt] ?? '').trim()
     const fileName = (cells[nameAt] ?? '').trim()
-    const guest = (idCol >= 0 ? byId.get((cells[idCol] ?? '').trim()) : undefined) ?? byName.get(key(fileName))
+    const byIdMatch = idCol >= 0 ? byId.get((cells[idCol] ?? '').trim()) : undefined
+    const guest = byIdMatch ?? byName.get(key(fileName))
     if (!guest) return { guestId: null, name: fileName || '(sin nombre)', raw, phone: null, status: 'desconocido' }
+    if (!byIdMatch && seen.has(guest.id)) {
+      return {
+        guestId: null,
+        name: fileName,
+        raw,
+        phone: null,
+        status: 'repetido',
+        note: 'Nombre repetido: usa la columna Código',
+      }
+    }
+    seen.add(guest.id)
 
     const base = { guestId: guest.id, name: guest.name, raw }
     if (!raw) return { ...base, phone: null, status: 'sin_telefono' }
@@ -120,6 +136,7 @@ export function readPhonesCsv(text: string, guests: Guest[]): PhoneImport {
     sin_telefono: 0,
     invalido: 0,
     desconocido: 0,
+    repetido: 0,
   }
   for (const r of rows) counts[r.status]++
 

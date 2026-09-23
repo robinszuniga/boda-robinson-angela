@@ -24,6 +24,7 @@ import {
 import { supabase } from '../../lib/supabase'
 import { safeUrl } from '../../lib/contact'
 import { formatCOP, formatDate, formatWeddingDate, todayISO } from '../../lib/format'
+import { describeError } from '../../lib/errors'
 import { getCountdown } from '../../lib/countdown'
 import { Button } from '../../components/ui/Button'
 import { ErrorState, LoadingState } from '../../components/ui/Display'
@@ -296,6 +297,7 @@ function RsvpForm({
       qc.setQueryData(['rsvp', token], data)
       setEditing(false)
     },
+    onError: (error) => toast.error(describeError(error)),
   })
 
   if (!editing) {
@@ -507,7 +509,10 @@ function GiftList({ gifts, token, envelopeRain }: { gifts: RsvpGiftView[]; token
       qc.setQueryData(['rsvp', token], data)
       toast.success(vars.value ? '¡Gracias! Quedó apartado a tu nombre' : 'Listo, lo liberamos')
     },
-    onError: () => qc.invalidateQueries({ queryKey: ['rsvp', token] }),
+    onError: (error) => {
+      toast.error(describeError(error))
+      qc.invalidateQueries({ queryKey: ['rsvp', token] })
+    },
   })
 
   const copy = async (text: string) => {

@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { tableKey } from '../../lib/crud'
-import { attempt } from '../../lib/attempt'
+import { attemptLoud } from '../../lib/attempt'
 import { plural } from '../../lib/format'
 import { Button } from '../../components/ui/Button'
 import { Checkbox } from '../../components/ui/Field'
@@ -45,7 +45,7 @@ export function DeleteTablesModal({ tables, onClose }: { tables: TableOccupancy[
     })
     if (!ok) return
     setDeleting(true)
-    const done = await attempt(
+    const done = await attemptLoud(
       (async () => {
         const { error } = await supabase.from('seating_tables').delete().in('id', ids)
         if (error) throw error

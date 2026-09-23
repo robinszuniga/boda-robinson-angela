@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { Sparkles } from 'lucide-react'
 import { tableKey } from '../../lib/crud'
-import { attempt } from '../../lib/attempt'
+import { attemptLoud } from '../../lib/attempt'
 import { updateGuests } from '../../lib/guestBulk'
 import { suggestCircles } from '../../lib/circles'
 import { guestGroup } from '../../lib/labels'
@@ -27,7 +27,7 @@ export function CirclesModal({ guests, onClose }: { guests: Guest[]; onClose: ()
     const circle = (names[key] ?? '').trim()
     if (!circle) return
     setSaving(key)
-    const ok = await attempt(updateGuests(ids, { circle }))
+    const ok = await attemptLoud(updateGuests(ids, { circle }))
     setSaving(null)
     await qc.invalidateQueries({ queryKey: tableKey('guests') })
     if (!ok) return

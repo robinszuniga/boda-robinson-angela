@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  bogotaDay,
   daysFromToday,
   formatCOP,
   formatCOPShort,
@@ -64,5 +65,24 @@ describe('getCountdown', () => {
 
   it('marca cuando ya pasó', () => {
     expect(getCountdown(new Date('2020-01-01'), new Date('2021-01-01')).isPast).toBe(true)
+  })
+})
+
+describe('fechas con hora (timestamptz)', () => {
+  it('lee el día en Bogotá, no en UTC', () => {
+    // 22 sep 8:30 p. m. en Bogotá ya es 23 de septiembre en UTC
+    expect(bogotaDay('2026-09-23T01:30:00.000Z')).toBe('2026-09-22')
+    expect(formatDate('2026-09-23T01:30:00.000Z')).toBe('22 sep 2026')
+  })
+
+  it('una fecha sin hora se usa tal cual', () => {
+    expect(bogotaDay('2027-05-08')).toBe('2027-05-08')
+    expect(formatDate('2027-05-08')).toBe('8 may 2027')
+  })
+
+  it('cuenta los días desde hoy en Bogotá', () => {
+    const ahora = new Date('2026-09-23T14:00:00.000Z') // 9 a. m. en Bogotá
+    expect(daysFromToday('2026-09-23T01:30:00.000Z', ahora)).toBe(-1)
+    expect(daysFromToday('2026-09-23T14:00:00.000Z', ahora)).toBe(0)
   })
 })

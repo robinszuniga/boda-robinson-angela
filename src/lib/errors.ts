@@ -46,5 +46,7 @@ export function describeError(error: unknown): string {
   if (/Payload too large|exceeded the maximum allowed size/i.test(message)) {
     return 'El archivo es demasiado grande (máximo 20 MB).'
   }
-  return message
+  // Un mensaje técnico de Postgres no le dice nada al usuario
+  console.error(error)
+  return 'Ocurrió un error. Vuelve a intentarlo.'
 }

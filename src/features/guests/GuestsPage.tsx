@@ -20,7 +20,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { guestMembersApi, guestsApi, seatingTablesApi, useSettings } from '../../lib/api'
 import { tableKey } from '../../lib/crud'
-import { attempt } from '../../lib/attempt'
+import { attemptLoud } from '../../lib/attempt'
 import { headcount } from '../../lib/seating'
 import { daysFromToday, plural } from '../../lib/format'
 import { ageSummary, confirmedByAge, partyAges } from '../../lib/ages'
@@ -109,7 +109,7 @@ export default function GuestsPage() {
     })
   const assignCircle = async (value: string | null) => {
     setAssigning(true)
-    const ok = await attempt(updateGuests([...selected], { circle: value }))
+    const ok = await attemptLoud(updateGuests([...selected], { circle: value }))
     setAssigning(false)
     await qc.invalidateQueries({ queryKey: tableKey('guests') })
     if (!ok) return

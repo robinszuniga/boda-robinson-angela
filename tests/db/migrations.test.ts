@@ -408,7 +408,7 @@ describe('acompañantes que escribe el invitado (0009)', () => {
     ).rejects.toThrow(/invalid_member_name/)
   })
 
-  it('si responde otra vez, reemplaza la lista en vez de duplicarla', async () => {
+  it('responder dos veces no duplica ni borra los acompañantes ya guardados', async () => {
     const g = await newGuest('Carlos', 2)
     await as('anon')
     const submit = (names: string[]) =>
@@ -420,13 +420,28 @@ describe('acompañantes que escribe el invitado (0009)', () => {
     await submit(['Ana', 'Luis'])
     await submit(['Sofía'])
     await as('postgres')
-    const members = await rows<{ name: string }>('select name from public.guest_members where guest_id = $1', [g.id])
-    expect(members.map((m) => m.name)).toEqual(['Sofía'])
-    const [row] = await rows<{ plus_ones_confirmed: number }>(
-      'select plus_ones_confirmed from public.guests where id = $1',
+    const members = await rows<{ name: string }>(
+      'select name from public.guest_members where guest_id = $1 order by sort_order',
       [g.id],
     )
-    expect(row.plus_ones_confirmed).toBe(1)
+    expect(members.map((m) => m.name)).toEqual(['Ana', 'Luis'])
+  })
+
+  it('el link público no puede reemplazar la lista que cargaron los novios (0012)', async () => {
+    const g = await newGuest('Familia Ruiz', 2)
+    await rows(`insert into public.guest_members (guest_id, name, age_group) values ($1, 'Tomás', 'nino')`, [g.id])
+    await as('anon')
+    // Sin p_members, como lo haría una llamada directa a la API
+    await db.query(`select public.rsvp_submit($1, 'confirmado', 1, null, null, null, false, null, $2::jsonb)`, [
+      g.rsvp_token,
+      JSON.stringify(['Intruso']),
+    ])
+    await as('postgres')
+    const members = await rows<{ name: string; age_group: string }>(
+      'select name, age_group from public.guest_members where guest_id = $1',
+      [g.id],
+    )
+    expect(members).toEqual([{ name: 'Tomás', age_group: 'nino' }])
   })
 
   it('si los novios ya pusieron los acompañantes, manda la lista con casillas y no se tocan', async () => {

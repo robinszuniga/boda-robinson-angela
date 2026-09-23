@@ -70,3 +70,21 @@ describe('readPhonesCsv', () => {
     expect(result.rows[2]).toMatchObject({ status: 'desconocido', name: 'Desconocida' })
   })
 })
+
+describe('seguridad y casos raros del CSV', () => {
+  it('neutraliza lo que Excel tomaría como fórmula', () => {
+    const g = guest({ name: '=HYPERLINK("http://malo","clic")' })
+    const [, fila] = phonesCsv([g]).split(/\r?\n/)
+    expect(fila).toContain("'=HYPERLINK")
+  })
+
+  it('marca las filas con nombre repetido en vez de adivinar', () => {
+    const a = guest({ name: 'Raul Daza' })
+    const b = guest({ name: 'Raul Daza' })
+    const csv = ['Nombre;Teléfono', 'Raul Daza;3001112222', 'Raul Daza;3003334444'].join('\n')
+    const result = readPhonesCsv(csv, [a, b])
+    expect(result.updates).toEqual([{ id: a.id, phone: '573001112222' }])
+    expect(result.counts.repetido).toBe(1)
+    expect(result.rows[1]).toMatchObject({ status: 'repetido', note: 'Nombre repetido: usa la columna Código' })
+  })
+})

@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle } from 'lucide-react'
 import { tableKey } from '../../lib/crud'
-import { attempt } from '../../lib/attempt'
+import { attemptLoud } from '../../lib/attempt'
 import { planSeatingByGroup } from '../../lib/autoSeating'
 import { updateGuestsEach } from '../../lib/guestBulk'
 import { seatsFor } from '../../lib/seating'
@@ -36,7 +36,7 @@ export function AutoSeatModal({
     const before = plan.moves.map((m) => ({ id: m.guest.id, values: { table_id: m.guest.table_id } }))
     const after = plan.moves.map((m) => ({ id: m.guest.id, values: { table_id: m.tableId } }))
     setSaving(true)
-    const ok = await attempt(updateGuestsEach(after))
+    const ok = await attemptLoud(updateGuestsEach(after))
     setSaving(false)
     await qc.invalidateQueries({ queryKey: tableKey('guests') })
     if (!ok) return
@@ -44,7 +44,7 @@ export function AutoSeatModal({
       action: {
         label: 'Deshacer',
         onClick: async () => {
-          if (await attempt(updateGuestsEach(before))) toast.success('Se devolvieron las mesas como estaban')
+          if (await attemptLoud(updateGuestsEach(before))) toast.success('Se devolvieron las mesas como estaban')
           await qc.invalidateQueries({ queryKey: tableKey('guests') })
         },
       },

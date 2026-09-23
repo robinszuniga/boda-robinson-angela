@@ -172,7 +172,7 @@ export default function TasksPage() {
             </div>
           }
         >
-          La plantilla trae unas 50 tareas típicas organizadas por meses, con fechas calculadas desde la fecha de la boda.
+          La plantilla trae 74 tareas típicas organizadas por meses, con fechas calculadas desde la fecha de la boda.
         </EmptyState>
       ) : (
         <>

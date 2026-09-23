@@ -42,7 +42,9 @@ export async function downloadBackup(): Promise<number> {
 
 function csvCell(value: unknown): string {
   const text = value == null ? '' : String(value)
-  return /[";\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+  // Excel ejecutaría como fórmula un texto que empiece por = + - @
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text
+  return /[";\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
 }
 
 /** CSV con punto y coma (lo abre bien Excel en español) */

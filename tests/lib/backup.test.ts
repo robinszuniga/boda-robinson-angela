@@ -31,3 +31,11 @@ describe('guestsCsv', () => {
     expect(row).toContain('La bicicleta;Sí')
   })
 })
+
+describe('seguridad del CSV de invitados', () => {
+  it('neutraliza el texto que escriba un invitado y parezca fórmula', () => {
+    const g = guest({ name: 'Ana', dietary: '=WEBSERVICE("http://malo")' })
+    const [, row] = guestsCsv([g], [], []).split(/\r?\n/)
+    expect(row).toContain("'=WEBSERVICE")
+  })
+})

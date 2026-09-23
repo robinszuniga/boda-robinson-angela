@@ -55,10 +55,19 @@ export function todayISO(now: Date = new Date()): string {
   }).format(now)
 }
 
+/**
+ * Día calendario en Bogotá. Una fecha suelta ('2027-05-08') se usa tal cual;
+ * un instante con hora ('2026-09-22T23:30:00Z') se convierte, porque en UTC
+ * ya sería el día siguiente.
+ */
+export function bogotaDay(iso: string): string {
+  return /[T ]\d{2}:/.test(iso) ? todayISO(new Date(iso)) : iso.slice(0, 10)
+}
+
 /** '2027-05-15' → '15 may 2027' */
 export function formatDate(iso: string | null | undefined, pattern = 'd MMM yyyy'): string {
   if (!iso) return '—'
-  return format(parseISO(iso.slice(0, 10)), pattern, { locale: es })
+  return format(parseISO(bogotaDay(iso)), pattern, { locale: es })
 }
 
 export function formatDateLong(iso: string | null | undefined): string {
@@ -67,7 +76,7 @@ export function formatDateLong(iso: string | null | undefined): string {
 
 /** Días entre hoy (Bogotá) y una fecha 'yyyy-MM-dd'. Negativo si ya pasó. */
 export function daysFromToday(iso: string, now: Date = new Date()): number {
-  return differenceInCalendarDays(parseISO(iso.slice(0, 10)), parseISO(todayISO(now)))
+  return differenceInCalendarDays(parseISO(bogotaDay(iso)), parseISO(todayISO(now)))
 }
 
 /** '16:00:00' → '4:00 p. m.' */

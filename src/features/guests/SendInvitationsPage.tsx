@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Check, Copy, MessageCircle, Phone, RotateCcw, Send, Upload } from 'lucide-react'
 import { guestsApi, useSettings } from '../../lib/api'
+import { attempt } from '../../lib/attempt'
 import { whatsappLink } from '../../lib/contact'
 import { formatPhone } from '../../lib/phones'
 import { formatDate } from '../../lib/format'
@@ -44,6 +45,11 @@ export default function SendInvitationsPage() {
 
   const mark = (guest: Guest, value: string | null) =>
     update.mutate({ id: guest.id, values: { invitation_sent_at: value } })
+
+  const markAsSent = async (guest: Guest) => {
+    const ok = await attempt(update.mutateAsync({ id: guest.id, values: { invitation_sent_at: new Date().toISOString() } }))
+    if (ok) toast.success(`Invitación de ${guest.name} marcada como enviada`)
+  }
 
   const send = (guest: Guest) => {
     window.open(whatsappLink(guest.phone, invitationText(guest, settings.data)), '_blank', 'noopener')
@@ -182,10 +188,7 @@ export default function SendInvitationsPage() {
                     size="sm"
                     variant="ghost"
                     icon={<Check className="size-4" />}
-                    onClick={() => {
-                      mark(g, new Date().toISOString())
-                      toast.success(`Invitación de ${g.name} marcada como enviada`)
-                    }}
+                    onClick={() => markAsSent(g)}
                   >
                     Marcar enviada
                   </Button>

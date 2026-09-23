@@ -33,11 +33,17 @@ export function BulkGuestsModal({ onClose }: { onClose: () => void }) {
         }),
     )
     if (!ok) return
+    // Ya quedaron guardados: se limpia el texto para que un reintento no los duplique
+    setText('')
     // Los invitados vuelven en el mismo orden en que se insertaron
     const members = lines.flatMap((l, i) =>
       l.members.map((name, j) => ({ guest_id: created[i].id, name, sort_order: j })),
     )
-    if (members.length > 0 && !(await attempt(createMembers.mutateAsync(members)))) return
+    if (members.length > 0 && !(await attempt(createMembers.mutateAsync(members)))) {
+      toast.error('Se agregaron los invitados, pero no sus acompañantes. Agrégalos entrando a cada uno.')
+      onClose()
+      return
+    }
     toast.success(`${plural(lines.length, 'invitado agregado', 'invitados agregados')}`)
     onClose()
   }

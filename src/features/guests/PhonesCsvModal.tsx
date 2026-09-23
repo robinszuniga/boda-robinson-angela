@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { AlertCircle, Download, Upload } from 'lucide-react'
-import { attempt } from '../../lib/attempt'
+import { attemptLoud } from '../../lib/attempt'
 import { updateGuestsEach } from '../../lib/guestBulk'
 import { downloadCsv } from '../../lib/download'
 import { todayISO } from '../../lib/format'
@@ -14,7 +14,8 @@ import { tableKey } from '../../lib/crud'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Guest } from '../../types/database'
 
-const problem = (r: PhoneRow) => r.status === 'invalido' || r.status === 'desconocido' || !!r.note
+const problem = (r: PhoneRow) =>
+  r.status === 'invalido' || r.status === 'desconocido' || r.status === 'repetido' || !!r.note
 
 /** Descarga la planilla y recibe el archivo lleno para guardar los teléfonos */
 export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: () => void }) {
@@ -32,7 +33,7 @@ export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: 
   const save = async () => {
     if (!result || result.updates.length === 0) return
     setSaving(true)
-    const ok = await attempt(
+    const ok = await attemptLoud(
       updateGuestsEach(result.updates.map((u) => ({ id: u.id, values: { phone: u.phone } }))),
     )
     setSaving(false)
@@ -118,6 +119,9 @@ export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: 
               {result.counts.desconocido > 0 && (
                 <span className="text-red-700">{result.counts.desconocido} no están en la lista</span>
               )}
+              {result.counts.repetido > 0 && (
+                <span className="text-red-700">{result.counts.repetido} con nombre repetido</span>
+              )}
             </div>
             {issues.length > 0 && (
               <ul className="max-h-48 divide-y divide-line overflow-y-auto text-sm">
@@ -126,12 +130,12 @@ export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: 
                     <span className="min-w-0 truncate">{r.name}</span>
                     <span
                       className={
-                        r.status === 'invalido' || r.status === 'desconocido'
+                        r.status === 'invalido' || r.status === 'desconocido' || r.status === 'repetido'
                           ? 'inline-flex shrink-0 items-center gap-1 text-xs text-red-700'
                           : 'shrink-0 text-xs text-amber-700'
                       }
                     >
-                      {(r.status === 'invalido' || r.status === 'desconocido') && (
+                      {(r.status === 'invalido' || r.status === 'desconocido' || r.status === 'repetido') && (
                         <AlertCircle className="size-3.5 translate-y-0.5" />
                       )}
                       {r.status === 'desconocido'

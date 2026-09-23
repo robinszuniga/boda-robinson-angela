@@ -8,6 +8,12 @@ export function useLoadScheduleExample() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async () => {
+      // Si ya hay momentos no se vuelve a cargar: evita duplicar con doble clic
+      const { count, error: countError } = await supabase
+        .from('day_schedule_items')
+        .select('id', { count: 'exact', head: true })
+      if (countError) throw countError
+      if ((count ?? 0) > 0) return
       const { error } = await supabase.from('day_schedule_items').insert(DAY_SCHEDULE_EXAMPLE)
       if (error) throw error
     },
