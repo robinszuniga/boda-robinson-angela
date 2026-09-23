@@ -13,7 +13,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { toast } from 'sonner'
-import { Accessibility, AlertTriangle, Armchair, Baby, Pencil, Plus, Search, UserMinus, Wand2 } from 'lucide-react'
+import { Accessibility, AlertTriangle, Armchair, Baby, Pencil, Plus, Search, Trash2, UserMinus, Wand2 } from 'lucide-react'
 import { guestLinksApi, guestMembersApi, guestsApi, seatingTablesApi } from '../../lib/api'
 import { linkConflicts, occupancy, seatsFor, type TableOccupancy, type TableStatus } from '../../lib/seating'
 import { ageSummary, partyAges, type AgeCount } from '../../lib/ages'
@@ -26,6 +26,7 @@ import type { Guest, SeatingTable } from '../../types/database'
 import { TableFormModal } from './TableFormModal'
 import { LinksPanel } from './LinksPanel'
 import { AutoSeatModal } from './AutoSeatModal'
+import { DeleteTablesModal } from './DeleteTablesModal'
 
 const UNASSIGNED = 'sin-mesa'
 
@@ -127,6 +128,7 @@ export default function SeatingPage() {
   const [tableForm, setTableForm] = useState<{ table?: SeatingTable } | null>(null)
   const [assigning, setAssigning] = useState<Guest | null>(null)
   const [autoSeat, setAutoSeat] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [dragging, setDragging] = useState<Guest | null>(null)
 
   const sensors = useSensors(
@@ -188,9 +190,14 @@ export default function SeatingPage() {
         actions={
           <>
             {(tables.data?.length ?? 0) > 0 && (
-              <Button variant="secondary" icon={<Wand2 className="size-4" />} onClick={() => setAutoSeat(true)}>
-                Armar por grupo
-              </Button>
+              <>
+                <Button variant="secondary" icon={<Trash2 className="size-4" />} onClick={() => setDeleting(true)}>
+                  Borrar mesas
+                </Button>
+                <Button variant="secondary" icon={<Wand2 className="size-4" />} onClick={() => setAutoSeat(true)}>
+                  Armar por grupo
+                </Button>
+              </>
             )}
             <Button icon={<Plus className="size-4" />} onClick={() => setTableForm({})}>
               Mesas
@@ -297,6 +304,7 @@ export default function SeatingPage() {
       </DndContext>
 
       {tableForm && <TableFormModal {...tableForm} nextNumber={nextNumber} onClose={() => setTableForm(null)} />}
+      {deleting && <DeleteTablesModal tables={occ} onClose={() => setDeleting(false)} />}
       {autoSeat && (
         <AutoSeatModal
           tables={tables.data ?? []}
