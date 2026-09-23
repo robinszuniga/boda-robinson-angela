@@ -117,6 +117,28 @@ describe('planSeatingByGroup', () => {
     expect(namesAt(plan, 2)).toEqual(['Andrés'])
   })
 
+  it('no le agrega gente a una mesa fija ni saca a los que ya están en ella', () => {
+    const principal = table({ number: 1, capacity: 10, locked: true })
+    const normal = table({ number: 2, capacity: 10 })
+    const novia = guest({ name: 'Mamá de Ángela', guest_group: 'familia_novia', table_id: principal.id })
+    const otra = guest({ name: 'Prima', guest_group: 'familia_novia' })
+    const plan = planSeatingByGroup([principal, normal], [novia, otra], [])
+    expect(namesAt(plan, 1)).toEqual(['Mamá de Ángela'])
+    expect(namesAt(plan, 2)).toEqual(['Prima'])
+    expect(plan.moves.map((m) => m.guest.name)).toEqual(['Prima'])
+  })
+
+  it('con "rehacer todo" tampoco mueve a los de una mesa fija', () => {
+    const principal = table({ number: 1, capacity: 10, locked: true })
+    const normal = table({ number: 2, capacity: 10 })
+    const novio = guest({ name: 'Papá de Robinson', guest_group: 'familia_novio', table_id: principal.id })
+    const amigo = guest({ name: 'Amigo', guest_group: 'amigos', table_id: normal.id })
+    const plan = planSeatingByGroup([principal, normal], [novio, amigo], [], { reassignAll: true })
+    expect(namesAt(plan, 1)).toEqual(['Papá de Robinson'])
+    expect(namesAt(plan, 2)).toEqual(['Amigo'])
+    expect(plan.tables.find((t) => t.table.number === 1)?.locked).toBe(true)
+  })
+
   it('ignora a los que no asisten y reporta a quien no cupo', () => {
     const t1 = table({ number: 1, capacity: 2 })
     const guests = [

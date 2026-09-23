@@ -5,7 +5,7 @@ import { Trash2 } from 'lucide-react'
 import { seatingTablesApi } from '../../lib/api'
 import { attempt } from '../../lib/attempt'
 import { Button } from '../../components/ui/Button'
-import { Field, FormGrid, Input } from '../../components/ui/Field'
+import { Checkbox, Field, FormGrid, Input } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
 import { Segmented } from '../../components/ui/Display'
 import { useConfirm } from '../../components/ui/Confirm'
@@ -16,6 +16,7 @@ interface FormValues {
   name: string
   capacity: number
   count: number
+  locked: boolean
 }
 
 export function TableFormModal({
@@ -42,6 +43,7 @@ export function TableFormModal({
       name: table?.name ?? '',
       capacity: table?.capacity ?? 10,
       count: 5,
+      locked: table?.locked ?? false,
     },
   })
 
@@ -49,13 +51,18 @@ export function TableFormModal({
     let ok: boolean
     if (table) {
       ok = await attempt(
-        update.mutateAsync({ id: table.id, values: { number: v.number, name: v.name.trim() || null, capacity: v.capacity } }),
+        update.mutateAsync({
+          id: table.id,
+          values: { number: v.number, name: v.name.trim() || null, capacity: v.capacity, locked: v.locked },
+        }),
       )
     } else if (mode === 'varias') {
       const rows = Array.from({ length: v.count }, (_, i) => ({ number: v.number + i, capacity: v.capacity }))
       ok = await attempt(create.mutateAsync(rows))
     } else {
-      ok = await attempt(create.mutateAsync({ number: v.number, name: v.name.trim() || null, capacity: v.capacity }))
+      ok = await attempt(
+        create.mutateAsync({ number: v.number, name: v.name.trim() || null, capacity: v.capacity, locked: v.locked }),
+      )
     }
     if (!ok) return
     toast.success(table ? 'Mesa actualizada' : mode === 'varias' ? `${v.count} mesas creadas` : 'Mesa creada')
@@ -128,6 +135,12 @@ export function TableFormModal({
             </Field>
           )}
         </FormGrid>
+        {mode === 'una' && (
+          <Checkbox
+            label="Fijar esta mesa: el reparto automático no la toca"
+            {...register('locked')}
+          />
+        )}
       </form>
     </Modal>
   )

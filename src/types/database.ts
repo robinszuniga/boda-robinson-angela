@@ -91,6 +91,8 @@ export type SeatingTable = {
   number: number
   name: string | null
   capacity: number
+  /** Fijada: el reparto automático no la toca */
+  locked: boolean
   created_at: string
 }
 

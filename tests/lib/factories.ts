@@ -68,7 +68,7 @@ export function guest(overrides: Partial<Guest> = {}): Guest {
 }
 
 export function table(overrides: Partial<SeatingTable> = {}): SeatingTable {
-  return { id: id('tab'), number: ++n, name: null, capacity: 10, created_at: now, ...overrides }
+  return { id: id('tab'), number: ++n, name: null, capacity: 10, locked: false, created_at: now, ...overrides }
 }
 
 export function link(overrides: Partial<GuestLink> & Pick<GuestLink, 'guest_a' | 'guest_b'>): GuestLink {

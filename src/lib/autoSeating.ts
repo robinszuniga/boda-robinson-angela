@@ -8,6 +8,8 @@ export interface PlannedTable {
   table: SeatingTable
   guests: Guest[]
   used: number
+  /** Fijada por los novios: no se le mueve ni se le agrega nadie */
+  locked: boolean
   /** Grupo que ocupa la mesa, null si está vacía */
   group: GuestGroup | null
   /** Círculo que ocupa la mesa; null si está vacía o si quedaron mezclados */
@@ -73,7 +75,7 @@ export function planSeatingByGroup(
   const sortedTables = [...tables].sort((a, b) => a.number - b.number)
 
   const planned = new Map<string, PlannedTable>(
-    sortedTables.map((table) => [table.id, { table, guests: [], used: 0, group: null, circle: null }]),
+    sortedTables.map((table) => [table.id, { table, guests: [], used: 0, group: null, circle: null, locked: table.locked }]),
   )
   const circleOf = (guest: Guest) => guest.circle?.trim() || null
   const seatAt = (tableId: string, party: Guest[]) => {
@@ -85,8 +87,12 @@ export function planSeatingByGroup(
     target.group = party[0].guest_group
   }
 
-  // Los que ya tienen mesa se quedan donde están (salvo que se rehaga todo)
-  const fixed = options.reassignAll ? [] : attending.filter((g) => g.table_id && tableIds.has(g.table_id))
+  // Los que ya tienen mesa se quedan donde están (salvo que se rehaga todo).
+  // En una mesa fija nadie se mueve, ni siquiera al rehacer todo.
+  const locked = new Set(tables.filter((t) => t.locked).map((t) => t.id))
+  const fixed = attending.filter(
+    (g) => g.table_id && tableIds.has(g.table_id) && (!options.reassignAll || locked.has(g.table_id)),
+  )
   for (const g of fixed) seatAt(g.table_id!, [g])
   // Una mesa con invitados de varios grupos se deja quieta
   for (const t of planned.values()) {
@@ -133,11 +139,12 @@ export function planSeatingByGroup(
         const t = planned.get(table.id)!
         return table.capacity - t.used >= seats && !t.guests.some((g) => forbidden.has(g.id))
       }
-      const started = sortedTables.filter((table) => {
+      const libres = sortedTables.filter((table) => !table.locked)
+      const started = libres.filter((table) => {
         const t = planned.get(table.id)!
         return t.guests.length > 0 && t.group === group && groupsOf(t.guests).length === 1
       })
-      const empty = sortedTables.filter((table) => planned.get(table.id)!.guests.length === 0)
+      const empty = libres.filter((table) => planned.get(table.id)!.guests.length === 0)
       // Con círculo: su mesa, luego una vacía y, de último, otra del mismo
       // grupo aunque mezcle círculos. Sin círculo: primero las mesas empezadas
       // que tampoco tienen círculo, para no meterse en un círculo ajeno.

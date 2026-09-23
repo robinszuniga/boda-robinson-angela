@@ -59,7 +59,7 @@ export function AutoSeatModal({
       size="lg"
       onClose={onClose}
       title="Armar mesas por grupo"
-      description="Cada mesa queda con un solo grupo y ninguna invitación se separa."
+      description="Cada mesa queda con un solo grupo, ninguna invitación se separa y las mesas fijas no se tocan."
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -104,7 +104,7 @@ export function AutoSeatModal({
                 </span>
                 <span className="shrink-0 text-xs text-muted tabular-nums">
                   {t.used}/{t.table.capacity}
-                  {t.circle ? ` · ${t.circle}` : t.group ? ` · ${guestGroup[t.group]}` : ''}
+                  {t.locked ? ' · fija' : t.circle ? ` · ${t.circle}` : t.group ? ` · ${guestGroup[t.group]}` : ''}
                 </span>
               </div>
               <p className="text-xs text-muted">

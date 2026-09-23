@@ -13,7 +13,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { toast } from 'sonner'
-import { Accessibility, AlertTriangle, Armchair, Baby, Pencil, Plus, Search, Trash2, UserMinus, Wand2 } from 'lucide-react'
+import { Accessibility, AlertTriangle, Armchair, Baby, Lock, Pencil, Plus, Search, Trash2, UserMinus, Wand2 } from 'lucide-react'
 import { guestLinksApi, guestMembersApi, guestsApi, seatingTablesApi } from '../../lib/api'
 import { linkConflicts, occupancy, seatsFor, type TableOccupancy, type TableStatus } from '../../lib/seating'
 import { ageSummary, partyAges, type AgeCount } from '../../lib/ages'
@@ -355,7 +355,10 @@ function TableCard({
     <DropZone id={occ.table.id} className={cn('flex flex-col rounded-2xl border-2 bg-white p-4 shadow-xs transition', style.ring)}>
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h3 className="text-lg font-semibold">Mesa {occ.table.number}</h3>
+          <h3 className="flex items-center gap-1.5 text-lg font-semibold">
+            Mesa {occ.table.number}
+            {occ.table.locked && <Lock className="size-3.5 text-muted" aria-label="Mesa fija" />}
+          </h3>
           {occ.table.name && <p className="-mt-0.5 text-xs text-muted">{occ.table.name}</p>}
         </div>
         <div className="flex items-center gap-1">
