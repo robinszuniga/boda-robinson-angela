@@ -51,10 +51,12 @@ export default function SendInvitationsPage() {
     if (ok) toast.success(`Invitación de ${guest.name} marcada como enviada`)
   }
 
-  const send = (guest: Guest) => {
+  const send = async (guest: Guest) => {
     window.open(whatsappLink(guest.phone, invitationText(guest, settings.data)), '_blank', 'noopener')
-    mark(guest, new Date().toISOString())
-    setSentNow((n) => n + 1)
+    const ok = await attempt(
+      update.mutateAsync({ id: guest.id, values: { invitation_sent_at: new Date().toISOString() } }),
+    )
+    if (ok) setSentNow((n) => n + 1)
   }
 
   return (

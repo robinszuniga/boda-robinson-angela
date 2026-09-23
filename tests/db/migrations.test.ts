@@ -235,7 +235,7 @@ describe('experiencia del invitado (0005)', () => {
       song_request: string | null
       needs_transport: boolean
       table: { number: number; name: string | null } | null
-      members: { id: string; name: string; attending: boolean | null; dietary: string | null }[]
+      members: { id: string; name: string; attending: boolean | null; dietary: string | null; from_guest: boolean }[]
     }
     wedding: Record<string, unknown>
   }
@@ -259,8 +259,8 @@ describe('experiencia del invitado (0005)', () => {
     expect(data.guest.song_request).toBe('La bicicleta')
     expect(data.guest.needs_transport).toBe(true)
     expect(data.guest.members).toEqual([
-      { id: ana.id, name: 'Ana', attending: true, dietary: 'Vegana' },
-      { id: sofi.id, name: 'Sofía', attending: false, dietary: null },
+      { id: ana.id, name: 'Ana', attending: true, dietary: 'Vegana', from_guest: false },
+      { id: sofi.id, name: 'Sofía', attending: false, dietary: null, from_guest: false },
     ])
 
     const [{ data: declined }] = await rows<{ data: View }>(
@@ -408,7 +408,7 @@ describe('acompañantes que escribe el invitado (0009)', () => {
     ).rejects.toThrow(/invalid_member_name/)
   })
 
-  it('responder dos veces no duplica ni borra los acompañantes ya guardados', async () => {
+  it('el invitado puede corregir los acompañantes que él mismo escribió (0013)', async () => {
     const g = await newGuest('Carlos', 2)
     await as('anon')
     const submit = (names: string[]) =>
@@ -420,11 +420,29 @@ describe('acompañantes que escribe el invitado (0009)', () => {
     await submit(['Ana', 'Luis'])
     await submit(['Sofía'])
     await as('postgres')
-    const members = await rows<{ name: string }>(
-      'select name from public.guest_members where guest_id = $1 order by sort_order',
+    const members = await rows<{ name: string; from_guest: boolean }>(
+      'select name, from_guest from public.guest_members where guest_id = $1 order by sort_order',
       [g.id],
     )
-    expect(members.map((m) => m.name)).toEqual(['Ana', 'Luis'])
+    expect(members).toEqual([{ name: 'Sofía', from_guest: true }])
+    const [row] = await rows<{ plus_ones_confirmed: number }>(
+      'select plus_ones_confirmed from public.guests where id = $1',
+      [g.id],
+    )
+    expect(row.plus_ones_confirmed).toBe(1)
+  })
+
+  it('un acompañante que cargaron los novios bloquea la reescritura, aunque haya otros del invitado', async () => {
+    const g = await newGuest('Mixta', 2)
+    await rows(`insert into public.guest_members (guest_id, name) values ($1, 'De los novios')`, [g.id])
+    await as('anon')
+    await db.query(`select public.rsvp_submit($1, 'confirmado', 1, null, null, null, false, null, $2::jsonb)`, [
+      g.rsvp_token,
+      JSON.stringify(['Intruso']),
+    ])
+    await as('postgres')
+    const members = await rows<{ name: string }>('select name from public.guest_members where guest_id = $1', [g.id])
+    expect(members.map((m) => m.name)).toEqual(['De los novios'])
   })
 
   it('el link público no puede reemplazar la lista que cargaron los novios (0012)', async () => {

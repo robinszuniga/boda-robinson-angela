@@ -235,7 +235,9 @@ export default function SettingsPage() {
                   icon={<CalendarClock className="size-4" />}
                   disabled={loadExample.isPending || (schedule.data?.length ?? 0) > 0}
                   onClick={async () => {
-                    if (await attempt(loadExample.mutateAsync())) toast.success('Cronograma de ejemplo cargado')
+                    const inserted = await loadExample.mutateAsync().catch(() => null)
+                    if (inserted) toast.success('Cronograma de ejemplo cargado')
+                    else if (inserted === false) toast.info('El cronograma ya tenía momentos, no se cargó de nuevo')
                   }}
                 >
                   {(schedule.data?.length ?? 0) > 0 ? 'El cronograma ya tiene datos' : 'Cargar ejemplo'}

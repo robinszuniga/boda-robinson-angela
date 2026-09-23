@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { AlertCircle } from 'lucide-react'
-import { guestMembersApi, guestsApi } from '../../lib/api'
-import { attempt } from '../../lib/attempt'
+import { useQueryClient } from '@tanstack/react-query'
+import { guestsApi } from '../../lib/api'
+import { supabase } from '../../lib/supabase'
+import { tableKey } from '../../lib/crud'
+import { friendlyError } from '../../lib/errors'
+import { attempt, attemptLoud } from '../../lib/attempt'
 import { guestGroup, options } from '../../lib/labels'
 import { MAX_PLUS_ONES, parseGuestLines } from '../../lib/guestLines'
 import { plural } from '../../lib/format'
@@ -14,14 +18,15 @@ import type { GuestGroup } from '../../types/database'
 /** Agregar muchos invitados de una vez: uno por línea, cada uno con sus acompañantes */
 export function BulkGuestsModal({ onClose }: { onClose: () => void }) {
   const create = guestsApi.useCreate()
-  const createMembers = guestMembersApi.useCreate()
+  const qc = useQueryClient()
+  const [savingMembers, setSavingMembers] = useState(false)
   const [text, setText] = useState('')
   const [group, setGroup] = useState<GuestGroup>('amigos')
   const [plusOnes, setPlusOnes] = useState(0)
 
   const lines = parseGuestLines(text, plusOnes)
   const invalid = lines.filter((l) => l.error).length
-  const saving = create.isPending || createMembers.isPending
+  const saving = create.isPending || savingMembers
 
   const save = async () => {
     let created: { id: string }[] = []
@@ -39,10 +44,22 @@ export function BulkGuestsModal({ onClose }: { onClose: () => void }) {
     const members = lines.flatMap((l, i) =>
       l.members.map((name, j) => ({ guest_id: created[i].id, name, sort_order: j })),
     )
-    if (members.length > 0 && !(await attempt(createMembers.mutateAsync(members)))) {
-      toast.error('Se agregaron los invitados, pero no sus acompañantes. Agrégalos entrando a cada uno.')
-      onClose()
-      return
+    if (members.length > 0) {
+      setSavingMembers(true)
+      const saved = await attemptLoud(
+        (async () => {
+          const { error } = await supabase.from('guest_members').insert(members)
+          if (error) {
+            throw friendlyError('Se agregaron los invitados, pero no sus acompañantes. Agrégalos entrando a cada uno.')
+          }
+        })(),
+      )
+      setSavingMembers(false)
+      await qc.invalidateQueries({ queryKey: tableKey('guest_members') })
+      if (!saved) {
+        onClose()
+        return
+      }
     }
     toast.success(`${plural(lines.length, 'invitado agregado', 'invitados agregados')}`)
     onClose()

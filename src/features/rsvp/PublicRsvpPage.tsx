@@ -249,12 +249,19 @@ function RsvpForm({
   const qc = useQueryClient()
   const deadline = wedding.rsvp_deadline
   const answered = guest.rsvp_status !== 'pendiente'
-  const hasMembers = guest.members.length > 0
+  // Los que cargaron los novios se marcan con casillas; los que escribió el
+  // invitado los puede volver a escribir
+  const ownMembers = guest.members.filter((m) => m.from_guest)
+  const hasMembers = guest.members.length > ownMembers.length
   const [editing, setEditing] = useState(!answered)
   const [attending, setAttending] = useState<boolean | null>(answered ? guest.rsvp_status === 'confirmado' : null)
-  const [plusOnes, setPlusOnes] = useState(answered ? guest.plus_ones_confirmed : guest.plus_ones_allowed)
+  const [plusOnes, setPlusOnes] = useState(
+    answered ? Math.max(guest.plus_ones_confirmed, ownMembers.length) : guest.plus_ones_allowed,
+  )
   // Nombres de los acompañantes cuando la invitación no los traía
-  const [names, setNames] = useState<string[]>(() => Array(guest.plus_ones_allowed).fill(''))
+  const [names, setNames] = useState<string[]>(() =>
+    Array.from({ length: guest.plus_ones_allowed }, (_, i) => ownMembers[i]?.name ?? ''),
+  )
   const [members, setMembers] = useState<MemberState>(() =>
     Object.fromEntries(
       guest.members.map((m) => [m.id, { attending: m.attending ?? !answered, dietary: m.dietary ?? '' }]),

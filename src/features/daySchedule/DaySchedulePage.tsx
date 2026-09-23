@@ -3,7 +3,6 @@ import { Link } from 'react-router'
 import { toast } from 'sonner'
 import { ClipboardList, Clock, Copy, MapPin, Music, Plus, Printer, User } from 'lucide-react'
 import { guestsApi, scheduleApi, useSettings, vendorsApi } from '../../lib/api'
-import { attempt } from '../../lib/attempt'
 import { formatTime, formatWeddingDate } from '../../lib/format'
 import { Button } from '../../components/ui/Button'
 import { buttonClass } from '../../components/ui/buttonStyles'
@@ -66,7 +65,9 @@ export default function DaySchedulePage() {
               <Button
                 disabled={loadExample.isPending}
                 onClick={async () => {
-                  if (await attempt(loadExample.mutateAsync())) toast.success('Ejemplo cargado: ajústalo a su gusto')
+                  const inserted = await loadExample.mutateAsync().catch(() => null)
+                  if (inserted) toast.success('Ejemplo cargado: ajústalo a su gusto')
+                  else if (inserted === false) toast.info('El cronograma ya tenía momentos, no se cargó de nuevo')
                 }}
               >
                 Cargar un ejemplo

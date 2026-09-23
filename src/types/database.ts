@@ -127,6 +127,8 @@ export type GuestMember = {
   id: string
   guest_id: string
   name: string
+  /** Lo escribió el propio invitado al confirmar */
+  from_guest: boolean
   attending: boolean | null
   dietary: string | null
   age_group: AgeGroup
@@ -249,6 +251,7 @@ export type RsvpMemberView = {
   name: string
   attending: boolean | null
   dietary: string | null
+  from_guest: boolean
 }
 
 export type RsvpGiftView = {

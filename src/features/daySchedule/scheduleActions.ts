@@ -13,9 +13,10 @@ export function useLoadScheduleExample() {
         .from('day_schedule_items')
         .select('id', { count: 'exact', head: true })
       if (countError) throw countError
-      if ((count ?? 0) > 0) return
+      if ((count ?? 0) > 0) return false
       const { error } = await supabase.from('day_schedule_items').insert(DAY_SCHEDULE_EXAMPLE)
       if (error) throw error
+      return true
     },
     onSettled: () => qc.invalidateQueries({ queryKey: tableKey('day_schedule_items') }),
   })

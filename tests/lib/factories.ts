@@ -76,5 +76,14 @@ export function link(overrides: Partial<GuestLink> & Pick<GuestLink, 'guest_a' |
 }
 
 export function member(overrides: Partial<GuestMember> & Pick<GuestMember, 'guest_id' | 'name'>): GuestMember {
-  return { id: id('mem'), attending: null, dietary: null, age_group: 'adulto', sort_order: 0, created_at: now, ...overrides }
+  return {
+    id: id('mem'),
+    attending: null,
+    dietary: null,
+    age_group: 'adulto',
+    from_guest: false,
+    sort_order: 0,
+    created_at: now,
+    ...overrides,
+  }
 }

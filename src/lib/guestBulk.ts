@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { describeError } from './errors'
+import { describeError, friendlyError } from './errors'
 import type { UpdateOf } from '../types/database'
 
 /** De a 10 peticiones, para no disparar cientos a la vez */
@@ -12,13 +12,13 @@ async function run(rows: { id: string; values: UpdateOf<'guests'> }[]) {
     const results = await Promise.all(
       chunk.map((r) => supabase.from('guests').update(r.values).eq('id', r.id)),
     )
+    applied += results.filter((r) => !r.error).length
     const failed = results.find((r) => r.error)
     if (failed?.error) {
-      // Lo de las tandas anteriores ya quedó guardado: hay que decirlo
+      // Lo que ya se guardó no se deshace: hay que decir cuánto alcanzó a quedar
       const parcial = applied > 0 ? `Se guardaron ${applied} de ${rows.length} y falló el resto. ` : ''
-      throw new Error(`${parcial}${describeError(failed.error)}`)
+      throw friendlyError(`${parcial}${describeError(failed.error)}`)
     }
-    applied += chunk.length
   }
 }
 
