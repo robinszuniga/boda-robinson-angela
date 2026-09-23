@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { headcount, linkConflicts, occupancy, seatsFor, tableStatus } from '../../src/lib/seating'
-import { guest, link, table } from './factories'
+import { headcount, linkConflicts, membersApart, occupancy, seatsFor, tableStatus } from '../../src/lib/seating'
+import { guest, link, member, table } from './factories'
 
 describe('seatsFor', () => {
   it('pendiente reserva el máximo, confirmado usa lo confirmado, rechazado no ocupa', () => {
@@ -86,5 +86,44 @@ describe('headcount', () => {
       pendingPeople: 3,
       expectedPeople: 5,
     })
+  })
+})
+
+describe('acompañantes sentados en otra mesa', () => {
+  it('el invitado ocupa un puesto menos y el acompañante ocupa el suyo', () => {
+    const t1 = table({ number: 1, capacity: 10 })
+    const t2 = table({ number: 2, capacity: 10 })
+    const abuela = guest({ name: 'Remedios', table_id: t1.id, plus_ones_allowed: 2 })
+    const primos = [
+      member({ guest_id: abuela.id, name: 'Vanessa', table_id: t2.id }),
+      member({ guest_id: abuela.id, name: 'Martin', table_id: t2.id, sort_order: 1 }),
+    ]
+    expect(seatsFor(abuela, primos)).toBe(1)
+    expect(membersApart(abuela, primos).map((m) => m.name)).toEqual(['Vanessa', 'Martin'])
+
+    const [mesa1, mesa2] = occupancy([t1, t2], [abuela], primos)
+    expect(mesa1.used).toBe(1)
+    expect(mesa2.used).toBe(2)
+    expect(mesa2.apart.map((m) => m.name)).toEqual(['Vanessa', 'Martin'])
+    expect(mesa1.used + mesa2.used).toBe(3)
+  })
+
+  it('un acompañante en la misma mesa de su invitación no se cuenta dos veces', () => {
+    const t1 = table({ number: 1, capacity: 10 })
+    const g = guest({ table_id: t1.id, plus_ones_allowed: 1 })
+    const m = member({ guest_id: g.id, name: 'Va junto', table_id: t1.id })
+    const [mesa] = occupancy([t1], [g], [m])
+    expect(mesa.used).toBe(2)
+    expect(mesa.apart).toEqual([])
+  })
+
+  it('el que dijo que no va no ocupa puesto aunque tenga mesa propia', () => {
+    const t1 = table({ number: 1, capacity: 10 })
+    const t2 = table({ number: 2, capacity: 10 })
+    const g = guest({ table_id: t1.id, rsvp_status: 'confirmado', plus_ones_allowed: 2, plus_ones_confirmed: 1 })
+    const m = member({ guest_id: g.id, name: 'No va', table_id: t2.id, attending: false })
+    const [mesa1, mesa2] = occupancy([t1, t2], [g], [m])
+    expect(mesa1.used).toBe(2)
+    expect(mesa2.used).toBe(0)
   })
 })

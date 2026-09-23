@@ -1,21 +1,32 @@
-import type { Guest, GuestLink, SeatingTable } from '../types/database'
+import type { Guest, GuestLink, GuestMember, SeatingTable } from '../types/database'
 
 export type TableStatus = 'vacia' | 'incompleta' | 'completa' | 'sobrecupo'
 
+/** Acompañantes con nombre que se sientan en una mesa distinta a la de su invitación */
+export function membersApart(guest: Guest, members: GuestMember[]): GuestMember[] {
+  return members.filter(
+    (m) => m.guest_id === guest.id && m.table_id && m.table_id !== guest.table_id && m.attending !== false,
+  )
+}
+
 /**
- * Puestos que ocupa un invitado. Si ya confirmó se usan sus acompañantes confirmados;
- * si está pendiente se reserva el máximo permitido. Los que rechazaron no ocupan.
+ * Puestos que ocupa un invitado en su mesa. Si ya confirmó se usan sus acompañantes
+ * confirmados; si está pendiente se reserva el máximo permitido. Los que rechazaron
+ * no ocupan, y los acompañantes sentados aparte se cuentan en su propia mesa.
  */
-export function seatsFor(guest: Guest): number {
+export function seatsFor(guest: Guest, members: GuestMember[] = []): number {
   if (guest.rsvp_status === 'rechazado') return 0
   const companions =
     guest.rsvp_status === 'confirmado' ? guest.plus_ones_confirmed : guest.plus_ones_allowed
-  return 1 + companions
+  const apart = Math.min(membersApart(guest, members).length, companions)
+  return 1 + companions - apart
 }
 
 export interface TableOccupancy {
   table: SeatingTable
   guests: Guest[]
+  /** Acompañantes que se sientan aquí aunque su invitación esté en otra mesa */
+  apart: GuestMember[]
   used: number
   free: number
   status: TableStatus
@@ -28,15 +39,25 @@ export function tableStatus(used: number, capacity: number): TableStatus {
   return 'incompleta'
 }
 
-export function occupancy(tables: SeatingTable[], guests: Guest[]): TableOccupancy[] {
+export function occupancy(
+  tables: SeatingTable[],
+  guests: Guest[],
+  members: GuestMember[] = [],
+): TableOccupancy[] {
+  const attending = new Set(guests.filter((g) => g.rsvp_status !== 'rechazado').map((g) => g.id))
   return [...tables]
     .sort((a, b) => a.number - b.number)
     .map((table) => {
       const seated = guests.filter((g) => g.table_id === table.id && g.rsvp_status !== 'rechazado')
-      const used = seated.reduce((s, g) => s + seatsFor(g), 0)
+      const apart = members.filter(
+        (m) => m.table_id === table.id && m.attending !== false && attending.has(m.guest_id) &&
+          guests.some((g) => g.id === m.guest_id && g.table_id !== table.id),
+      )
+      const used = seated.reduce((s, g) => s + seatsFor(g, members), 0) + apart.length
       return {
         table,
         guests: seated,
+        apart,
         used,
         free: table.capacity - used,
         status: tableStatus(used, table.capacity),

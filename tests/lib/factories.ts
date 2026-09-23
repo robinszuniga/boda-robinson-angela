@@ -82,6 +82,7 @@ export function member(overrides: Partial<GuestMember> & Pick<GuestMember, 'gues
     dietary: null,
     age_group: 'adulto',
     from_guest: false,
+    table_id: null,
     sort_order: 0,
     created_at: now,
     ...overrides,

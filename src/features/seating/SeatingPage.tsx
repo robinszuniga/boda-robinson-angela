@@ -22,7 +22,7 @@ import { Badge, EmptyState, ErrorState, LoadingState, PageHeader, Segmented } fr
 import { Input } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
 import { cn } from '../../components/ui/cn'
-import type { Guest, SeatingTable } from '../../types/database'
+import type { Guest, GuestMember, SeatingTable } from '../../types/database'
 import { TableFormModal } from './TableFormModal'
 import { LinksPanel } from './LinksPanel'
 import { AutoSeatModal } from './AutoSeatModal'
@@ -70,8 +70,8 @@ function AgeMarks({ ages }: { ages?: AgeCount }) {
   )
 }
 
-function ChipContent({ guest, ages, warn }: { guest: Guest; ages?: AgeCount; warn?: boolean }) {
-  const extra = seatsFor(guest) - 1
+function ChipContent({ guest, ages, warn, seats }: { guest: Guest; ages?: AgeCount; warn?: boolean; seats: number }) {
+  const extra = seats - 1
   return (
     <>
       <span className="min-w-0 flex-1 truncate">{guest.name}</span>
@@ -82,7 +82,19 @@ function ChipContent({ guest, ages, warn }: { guest: Guest; ages?: AgeCount; war
   )
 }
 
-function GuestChip({ guest, ages, warn, onClick }: { guest: Guest; ages?: AgeCount; warn?: boolean; onClick?: () => void }) {
+function GuestChip({
+  guest,
+  ages,
+  warn,
+  seats,
+  onClick,
+}: {
+  guest: Guest
+  ages?: AgeCount
+  warn?: boolean
+  seats: number
+  onClick?: () => void
+}) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: guest.id })
   return (
     <button
@@ -94,16 +106,16 @@ function GuestChip({ guest, ages, warn, onClick }: { guest: Guest; ages?: AgeCou
       className={chipClass(guest, isDragging ? 'opacity-30' : undefined)}
       title={guest.rsvp_status === 'pendiente' ? 'Pendiente de confirmar' : undefined}
     >
-      <ChipContent guest={guest} ages={ages} warn={warn} />
+      <ChipContent guest={guest} ages={ages} warn={warn} seats={seats} />
     </button>
   )
 }
 
 /** Copia que sigue al puntero mientras se arrastra */
-function DraggingChip({ guest, ages }: { guest: Guest; ages?: AgeCount }) {
+function DraggingChip({ guest, ages, seats }: { guest: Guest; ages?: AgeCount; seats: number }) {
   return (
     <div className={chipClass(guest, 'rotate-1 shadow-lg ring-2 ring-brand-300')}>
-      <ChipContent guest={guest} ages={ages} />
+      <ChipContent guest={guest} ages={ages} seats={seats} />
     </div>
   )
 }
@@ -144,7 +156,7 @@ export default function SeatingPage() {
 
   const attending = (guests.data ?? []).filter((g) => g.rsvp_status !== 'rechazado')
   const ages: AgesById = new Map(attending.map((g) => [g.id, partyAges(g, members.data ?? [])]))
-  const occ = occupancy(tables.data ?? [], attending)
+  const occ = occupancy(tables.data ?? [], attending, members.data ?? [])
   const conflicts = linkConflicts(links.data ?? [], guests.data ?? [])
   const conflictGuests = new Set(conflicts.flatMap((c) => [c.a.id, c.b.id]))
   const tableIds = new Set((tables.data ?? []).map((t) => t.id))
@@ -152,9 +164,11 @@ export default function SeatingPage() {
   const unassigned = attending
     .filter((g) => !g.table_id || !tableIds.has(g.table_id))
     .filter((g) => !term || g.name.toLowerCase().includes(term))
+  const guestName = new Map(attending.map((g) => [g.id, g.name]))
+  const seatsOf = (g: Guest) => seatsFor(g, members.data ?? [])
   const unassignedPeople = attending
     .filter((g) => !g.table_id || !tableIds.has(g.table_id))
-    .reduce((s, g) => s + seatsFor(g), 0)
+    .reduce((s, g) => s + seatsFor(g, members.data ?? []), 0)
   const totalSeats = occ.reduce((s, t) => s + t.table.capacity, 0)
   const seatedPeople = occ.reduce((s, t) => s + t.used, 0)
   const visible = occ.filter(
@@ -168,7 +182,7 @@ export default function SeatingPage() {
   const assign = (guest: Guest, tableId: string | null) => {
     if (guest.table_id === tableId) return
     const target = occ.find((t) => t.table.id === tableId)
-    if (target && target.used + seatsFor(guest) > target.table.capacity) {
+    if (target && target.used + seatsOf(guest) > target.table.capacity) {
       toast.warning(`La mesa ${target.table.number} queda con sobrecupo`)
     }
     update.mutate({ id: guest.id, values: { table_id: tableId } })
@@ -246,12 +260,16 @@ export default function SeatingPage() {
                       guest={g}
                       ages={ages.get(g.id)}
                       warn={conflictGuests.has(g.id)}
+                      seats={seatsOf(g)}
                       onClick={() => setAssigning(g)}
                     />
                   ))
                 )}
               </div>
               <p className="mt-3 text-xs text-muted">Borde punteado = aún no confirma (se le reservan sus acompañantes).</p>
+              <p className="mt-1 text-xs text-muted">
+                Un acompañante puede sentarse en otra mesa: se elige en su ficha, y aquí aparece con borde punteado verde.
+              </p>
               <p className="mt-1 text-xs text-muted">
                 <Baby className="inline size-3.5 -translate-y-px text-sky-700" /> niños ·{' '}
                 <Accessibility className="inline size-3.5 -translate-y-px text-violet-700" /> adultos mayores (siéntenlos
@@ -291,6 +309,8 @@ export default function SeatingPage() {
                     key={t.table.id}
                     occ={t}
                     ages={ages}
+                    guestName={guestName}
+                    seatsOf={seatsOf}
                     conflictGuests={conflictGuests}
                     onEdit={() => setTableForm({ table: t.table })}
                     onGuestClick={setAssigning}
@@ -300,7 +320,9 @@ export default function SeatingPage() {
             )}
           </div>
         </div>
-        <DragOverlay>{dragging && <DraggingChip guest={dragging} ages={ages.get(dragging.id)} />}</DragOverlay>
+        <DragOverlay>
+          {dragging && <DraggingChip guest={dragging} ages={ages.get(dragging.id)} seats={seatsOf(dragging)} />}
+        </DragOverlay>
       </DndContext>
 
       {tableForm && <TableFormModal {...tableForm} nextNumber={nextNumber} onClose={() => setTableForm(null)} />}
@@ -310,6 +332,7 @@ export default function SeatingPage() {
           tables={tables.data ?? []}
           guests={guests.data ?? []}
           links={links.data ?? []}
+          members={members.data ?? []}
           onClose={() => setAutoSeat(false)}
         />
       )}
@@ -317,6 +340,7 @@ export default function SeatingPage() {
         <AssignModal
           guest={assigning}
           tables={occ}
+          seats={seatsOf(assigning)}
           onPick={(tableId) => {
             assign(assigning, tableId)
             setAssigning(null)
@@ -331,12 +355,16 @@ export default function SeatingPage() {
 function TableCard({
   occ,
   ages,
+  guestName,
+  seatsOf,
   conflictGuests,
   onEdit,
   onGuestClick,
 }: {
   occ: TableOccupancy
   ages: AgesById
+  guestName: Map<string, string>
+  seatsOf: (guest: Guest) => number
   conflictGuests: Set<string>
   onEdit: () => void
   onGuestClick: (g: Guest) => void
@@ -385,10 +413,21 @@ function TableCard({
             guest={g}
             ages={ages.get(g.id)}
             warn={conflictGuests.has(g.id)}
+            seats={seatsOf(g)}
             onClick={() => onGuestClick(g)}
           />
         ))}
-        {occ.guests.length === 0 && (
+        {occ.apart.map((m: GuestMember) => (
+          <div
+            key={m.id}
+            className="flex items-center gap-1.5 rounded-lg border border-dashed border-brand-300 bg-brand-50/40 px-2.5 py-1.5 text-sm"
+            title={`Acompañante de ${guestName.get(m.guest_id) ?? 'otra invitación'}, sentado aquí`}
+          >
+            <span className="min-w-0 flex-1 truncate">{m.name}</span>
+            <span className="shrink-0 truncate text-xs text-muted">con {guestName.get(m.guest_id) ?? '—'}</span>
+          </div>
+        ))}
+        {occ.guests.length === 0 && occ.apart.length === 0 && (
           <p className="rounded-lg border border-dashed border-line py-3 text-center text-xs text-muted">Suelta invitados aquí</p>
         )}
       </div>
@@ -399,15 +438,17 @@ function TableCard({
 function AssignModal({
   guest,
   tables,
+  seats,
   onPick,
   onClose,
 }: {
   guest: Guest
   tables: TableOccupancy[]
+  seats: number
   onPick: (tableId: string | null) => void
   onClose: () => void
 }) {
-  const needed = seatsFor(guest)
+  const needed = seats
   return (
     <Modal open onClose={onClose} title={guest.name} description={`Ocupa ${needed} ${needed === 1 ? 'puesto' : 'puestos'}. Elige su mesa.`}>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">

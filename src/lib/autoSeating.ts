@@ -1,4 +1,4 @@
-import type { Guest, GuestGroup, GuestLink, SeatingTable } from '../types/database'
+import type { Guest, GuestGroup, GuestLink, GuestMember, SeatingTable } from '../types/database'
 import { seatsFor } from './seating'
 
 /** Orden en que se van llenando las mesas */
@@ -68,8 +68,9 @@ export function planSeatingByGroup(
   tables: SeatingTable[],
   guests: Guest[],
   links: GuestLink[],
-  options: { reassignAll?: boolean } = {},
+  options: { reassignAll?: boolean; members?: GuestMember[] } = {},
 ): SeatingPlan {
+  const members = options.members ?? []
   const attending = guests.filter((g) => g.rsvp_status !== 'rechazado')
   const tableIds = new Set(tables.map((t) => t.id))
   const sortedTables = [...tables].sort((a, b) => a.number - b.number)
@@ -83,8 +84,16 @@ export function planSeatingByGroup(
     const circle = circleOf(party[0])
     target.circle = target.guests.length === 0 || target.circle === circle ? circle : null
     target.guests.push(...party)
-    target.used += party.reduce((s, g) => s + seatsFor(g), 0)
+    target.used += party.reduce((s, g) => s + seatsFor(g, members), 0)
     target.group = party[0].guest_group
+  }
+
+  // Los acompañantes sentados aparte ya tienen puesto en su mesa
+  for (const m of members) {
+    if (!m.table_id || m.attending === false) continue
+    const target = planned.get(m.table_id)
+    const owner = attending.find((g) => g.id === m.guest_id)
+    if (target && owner && owner.table_id !== m.table_id) target.used += 1
   }
 
   // Los que ya tienen mesa se quedan donde están (salvo que se rehaga todo).
@@ -119,9 +128,9 @@ export function planSeatingByGroup(
   }
 
   for (const group of byGroup) {
-    const members = pending.filter((g) => g.guest_group === group)
-    const parties = clusters(members, links)
-      .map((party) => ({ party, seats: party.reduce((s, g) => s + seatsFor(g), 0) }))
+    const delGrupo = pending.filter((g) => g.guest_group === group)
+    const parties = clusters(delGrupo, links)
+      .map((party) => ({ party, seats: party.reduce((s, g) => s + seatsFor(g, members), 0) }))
       // Primero por círculo; dentro del círculo, las invitaciones grandes y
       // luego en el orden en que se agregaron a la lista
       .sort(

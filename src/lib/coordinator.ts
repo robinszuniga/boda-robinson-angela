@@ -35,8 +35,10 @@ export function coordinatorGuests(guests: Guest[], members: GuestMember[], table
     if (g.age_group === 'mayor') seniors.push({ name: g.name, table })
     for (const m of members) {
       if (m.guest_id !== g.id || m.attending === false) continue
-      if (m.dietary) dietary.push({ name: m.name, table, dietary: m.dietary })
-      if (m.age_group === 'mayor') seniors.push({ name: m.name, table })
+      // Un acompañante puede estar sentado en otra mesa
+      const suya = m.table_id ? (tableNumber.get(m.table_id) ?? null) : table
+      if (m.dietary) dietary.push({ name: m.name, table: suya, dietary: m.dietary })
+      if (m.age_group === 'mayor') seniors.push({ name: m.name, table: suya })
     }
   }
 

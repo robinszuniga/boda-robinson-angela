@@ -12,24 +12,26 @@ import { plural } from '../../lib/format'
 import { Button } from '../../components/ui/Button'
 import { Checkbox } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
-import type { Guest, GuestLink, SeatingTable } from '../../types/database'
+import type { Guest, GuestLink, GuestMember, SeatingTable } from '../../types/database'
 
 /** Reparte a los invitados por grupo, con vista previa antes de aplicar */
 export function AutoSeatModal({
   tables,
   guests,
   links,
+  members,
   onClose,
 }: {
   tables: SeatingTable[]
   guests: Guest[]
   links: GuestLink[]
+  members: GuestMember[]
   onClose: () => void
 }) {
   const qc = useQueryClient()
   const [reassignAll, setReassignAll] = useState(false)
   const [saving, setSaving] = useState(false)
-  const plan = planSeatingByGroup(tables, guests, links, { reassignAll })
+  const plan = planSeatingByGroup(tables, guests, links, { reassignAll, members })
   const used = plan.tables.filter((t) => t.guests.length > 0)
 
   const apply = async () => {
@@ -110,7 +112,7 @@ export function AutoSeatModal({
               <p className="text-xs text-muted">
                 {t.guests
                   .map((g) => {
-                    const extra = seatsFor(g) - 1
+                    const extra = seatsFor(g, members) - 1
                     return extra > 0 ? `${g.name} +${extra}` : g.name
                   })
                   .join(', ')}

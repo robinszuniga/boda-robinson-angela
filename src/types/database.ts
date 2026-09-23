@@ -129,6 +129,8 @@ export type GuestMember = {
   name: string
   /** Lo escribió el propio invitado al confirmar */
   from_guest: boolean
+  /** Mesa propia; null = se sienta con su invitación */
+  table_id: string | null
   attending: boolean | null
   dietary: string | null
   age_group: AgeGroup

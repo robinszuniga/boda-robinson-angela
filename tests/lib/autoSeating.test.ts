@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { planSeatingByGroup } from '../../src/lib/autoSeating'
-import { guest, link, table } from './factories'
+import { guest, link, member, table } from './factories'
 
 const namesAt = (plan: ReturnType<typeof planSeatingByGroup>, number: number) =>
   plan.tables.find((t) => t.table.number === number)!.guests.map((g) => g.name)
@@ -149,5 +149,20 @@ describe('planSeatingByGroup', () => {
     const plan = planSeatingByGroup([t1], guests, [])
     expect(namesAt(plan, 1)).toEqual(['Va'])
     expect(plan.unseated.map((g) => g.name)).toEqual(['Con acompañantes'])
+  })
+})
+
+describe('reparto con acompañantes sentados aparte', () => {
+  it('cuenta el puesto que ya ocupa el acompañante en su mesa', () => {
+    const t1 = table({ number: 1, capacity: 3 })
+    const t2 = table({ number: 2, capacity: 3 })
+    const abuela = guest({ name: 'Remedios', guest_group: 'familia_novio', table_id: t1.id, plus_ones_allowed: 2 })
+    const primo = member({ guest_id: abuela.id, name: 'Vanessa', table_id: t2.id })
+    const amigo = guest({ name: 'Otro', guest_group: 'familia_novio' })
+    const plan = planSeatingByGroup([t1, t2], [abuela, amigo], [], { members: [primo] })
+    const mesa2 = plan.tables.find((t) => t.table.number === 2)!
+    // La mesa 2 ya tenía un puesto ocupado por Vanessa
+    expect(mesa2.used).toBeGreaterThanOrEqual(1)
+    expect(plan.unseated).toEqual([])
   })
 })

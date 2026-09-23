@@ -36,6 +36,8 @@ interface DraftMember {
   attending: boolean | null
   dietary: string
   age_group: AgeGroup
+  /** Mesa propia; vacío = se sienta con su invitación */
+  table_id: string
 }
 
 let draftSeq = 0
@@ -68,6 +70,7 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
       attending: m.attending,
       dietary: m.dietary ?? '',
       age_group: m.age_group,
+      table_id: m.table_id ?? '',
     }))
   const [newMember, setNewMember] = useState('')
 
@@ -103,7 +106,7 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
     if (!name) return
     editMembers([
       ...members,
-      { key: draftKey(), name, attending: status === 'confirmado' ? true : null, dietary: '', age_group: 'adulto' },
+      { key: draftKey(), name, attending: status === 'confirmado' ? true : null, dietary: '', age_group: 'adulto', table_id: '' },
     ])
     setNewMember('')
   }
@@ -159,6 +162,7 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
           attending: attendingOf(m),
           dietary: m.dietary.trim() || null,
           age_group: m.age_group,
+          table_id: m.table_id || null,
           sort_order: i,
         }
         ops.push(m.id ? updateMember.mutateAsync({ id: m.id, values: row }) : createMember.mutateAsync({ ...row, guest_id: guestId! }))
@@ -318,7 +322,8 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
           <legend className="px-1 text-sm font-medium">Acompañantes con nombre</legend>
           <p className="mb-3 text-xs text-muted">
             Opcional. Útil para familias: cada persona tiene su edad y su restricción alimentaria, y el invitado marca
-            quiénes vienen. Si vienen niños, agrégalos aquí para que cuenten como niños.
+            quiénes vienen. Si vienen niños, agrégalos aquí para que cuenten como niños. Cada uno puede sentarse en otra
+            mesa si quieres.
           </p>
           {members.length > 0 && (
             <ul className="mb-3 flex flex-col gap-2">
@@ -379,6 +384,21 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
                         value={m.dietary}
                         onChange={(e) => edit({ dietary: e.target.value })}
                       />
+                      <Select
+                        aria-label={`Mesa de ${m.name}`}
+                        title="Puede sentarse en otra mesa"
+                        className="h-9 flex-none basis-36"
+                        value={m.table_id}
+                        onChange={(e) => edit({ table_id: e.target.value })}
+                      >
+                        <option value="">Su misma mesa</option>
+                        {(tables.data ?? []).map((t) => (
+                          <option key={t.id} value={t.id}>
+                            Mesa {t.number}
+                            {t.name ? ` · ${t.name}` : ''}
+                          </option>
+                        ))}
+                      </Select>
                     </div>
                   </li>
                 )
