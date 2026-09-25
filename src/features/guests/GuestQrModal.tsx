@@ -17,7 +17,7 @@ function fileSafe(name: string) {
 }
 
 export function GuestQrModal({ guest, onClose }: { guest: Guest; onClose: () => void }) {
-  const url = rsvpUrl(guest.rsvp_token)
+  const url = rsvpUrl(guest)
   return (
     <Modal
       open
@@ -26,7 +26,7 @@ export function GuestQrModal({ guest, onClose }: { guest: Guest; onClose: () => 
       description="Para imprimir en su invitación: al escanearlo abre su página de confirmación."
       footer={
         <>
-          <Button variant="secondary" icon={<Copy className="size-4" />} onClick={() => copyRsvpLink(guest.rsvp_token)}>
+          <Button variant="secondary" icon={<Copy className="size-4" />} onClick={() => copyRsvpLink(guest)}>
             Copiar link
           </Button>
           <Button

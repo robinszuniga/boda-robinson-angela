@@ -10,11 +10,15 @@ import {
 } from '../../lib/messages'
 import type { Guest, WeddingSettings } from '../../types/database'
 
-export function rsvpUrl(token: string): string {
-  return appUrl(`rsvp/${token}`)
+/** Lo mínimo para armarle el link a un invitado */
+type GuestLink = Pick<Guest, 'rsvp_token' | 'short_url'>
+
+/** El link que ve el invitado: el corto si lo tiene, si no el largo de siempre */
+export function rsvpUrl(guest: GuestLink): string {
+  return guest.short_url?.trim() || appUrl(`rsvp/${guest.rsvp_token}`)
 }
 
-type GuestForMessage = Pick<Guest, 'name' | 'rsvp_token'>
+type GuestForMessage = GuestLink & Pick<Guest, 'name'>
 
 export function messageValues(guest: GuestForMessage, settings?: WeddingSettings): MessageValues {
   return {
@@ -23,7 +27,7 @@ export function messageValues(guest: GuestForMessage, settings?: WeddingSettings
     // formatWeddingDate devuelve "sábado 8 de mayo de 2027, 5:00 p. m."
     fecha: settings ? formatWeddingDate(settings.wedding_date).replace(', ', ' a las ') : '',
     lugar: settings?.venue_name ?? '',
-    link: rsvpUrl(guest.rsvp_token),
+    link: rsvpUrl(guest),
     limite: settings?.rsvp_deadline ? formatDate(settings.rsvp_deadline, "d 'de' MMMM") : '',
   }
 }
@@ -45,9 +49,9 @@ export function reminderWhatsapp(guest: Guest, settings?: WeddingSettings): stri
   return whatsappLink(guest.phone, reminderText(guest, settings))
 }
 
-export async function copyRsvpLink(token: string) {
+export async function copyRsvpLink(guest: GuestLink) {
   try {
-    await navigator.clipboard.writeText(rsvpUrl(token))
+    await navigator.clipboard.writeText(rsvpUrl(guest))
     toast.success('Link de confirmación copiado')
   } catch {
     toast.error('No se pudo copiar. Mantén presionado el link para copiarlo.')

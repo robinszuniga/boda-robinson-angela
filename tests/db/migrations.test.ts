@@ -492,3 +492,22 @@ describe('setup.sql', () => {
     }
   })
 })
+
+describe('link corto de la invitación (0015)', () => {
+  it('acepta un link acortado y rechaza cualquier cosa que no sea una dirección segura', async () => {
+    const g = await newGuest('Tía Marta')
+    await as('postgres')
+    await db.query('update public.guests set short_url = $1 where id = $2', [
+      'https://tinyurl.com/BodaRobinsonAngela-h7k2m',
+      g.id,
+    ])
+    const [guardado] = await rows<{ short_url: string }>('select short_url from public.guests where id = $1', [g.id])
+    expect(guardado.short_url).toBe('https://tinyurl.com/BodaRobinsonAngela-h7k2m')
+
+    for (const malo of ['http://tinyurl.com/abc', 'tinyurl.com/abc', 'https://tinyurl.com/', 'javascript:alert(1)']) {
+      await expect(
+        db.query('update public.guests set short_url = $1 where id = $2', [malo, g.id]),
+      ).rejects.toThrow()
+    }
+  })
+})

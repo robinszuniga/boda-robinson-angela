@@ -58,7 +58,7 @@ export default function QrSheetPage() {
               {list.map((g) => (
                 <div key={g.id} className="flex break-inside-avoid flex-col items-center gap-2 rounded-xl border border-line p-4 text-center">
                   <p className="font-display text-lg leading-tight font-semibold">{g.name}</p>
-                  <QrCode value={rsvpUrl(g.rsvp_token)} label={`QR de ${g.name}`} className="w-36" />
+                  <QrCode value={rsvpUrl(g)} label={`QR de ${g.name}`} className="w-36" />
                   <p className="text-xs text-muted">Escanea para confirmar tu asistencia</p>
                 </div>
               ))}

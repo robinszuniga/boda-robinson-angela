@@ -452,8 +452,8 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
           <div className="rounded-xl border border-line bg-ivory px-4 py-3">
             <p className="text-xs font-medium text-muted">Link de confirmación</p>
             <div className="mt-1 flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate text-xs">{rsvpUrl(guest.rsvp_token)}</code>
-              <Button size="sm" variant="secondary" icon={<Copy className="size-3.5" />} onClick={() => copyRsvpLink(guest.rsvp_token)}>
+              <code className="min-w-0 flex-1 truncate text-xs">{rsvpUrl(guest)}</code>
+              <Button size="sm" variant="secondary" icon={<Copy className="size-3.5" />} onClick={() => copyRsvpLink(guest)}>
                 Copiar
               </Button>
             </div>

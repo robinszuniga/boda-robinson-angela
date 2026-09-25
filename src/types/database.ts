@@ -117,6 +117,8 @@ export type Guest = {
   needs_transport: boolean
   rsvp_reminded_at: string | null
   invitation_sent_at: string | null
+  /** Link acortado de la invitación; si está vacío se usa el link largo */
+  short_url: string | null
   circle: string | null
   age_group: AgeGroup
   created_at: string

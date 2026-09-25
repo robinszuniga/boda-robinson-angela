@@ -297,7 +297,7 @@ export default function GuestsPage() {
                     ))}
                   </select>
                   <div className="flex items-center">
-                    <IconButton label={`Copiar link de ${g.name}`} onClick={() => copyRsvpLink(g.rsvp_token)}>
+                    <IconButton label={`Copiar link de ${g.name}`} onClick={() => copyRsvpLink(g)}>
                       <Copy className="size-4" />
                     </IconButton>
                     <a

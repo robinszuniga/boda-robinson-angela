@@ -39,6 +39,8 @@ export default function SendInvitationsPage() {
   const sent = all.filter((g) => g.invitation_sent_at)
   const withoutPhone = all.filter((g) => !g.invitation_sent_at && !g.phone)
   const toSend = all.filter((g) => !g.invitation_sent_at && g.phone)
+  // Los que se irían con la dirección larga de GitHub en vez del link corto
+  const longLink = toSend.filter((g) => !g.short_url)
   const shown = (tab === 'por_enviar' ? toSend : tab === 'enviadas' ? sent : withoutPhone).filter(
     (g) => !group || g.guest_group === group,
   )
@@ -86,6 +88,12 @@ export default function SendInvitationsPage() {
               <>
                 {' '}
                 · <span className="font-medium text-amber-700">{withoutPhone.length} sin teléfono</span>
+              </>
+            )}
+            {longLink.length > 0 && (
+              <>
+                {' '}
+                · <span className="font-medium text-amber-700">{longLink.length} sin link corto</span>
               </>
             )}
           </p>
@@ -181,7 +189,7 @@ export default function SendInvitationsPage() {
                       size="sm"
                       variant="secondary"
                       icon={<Copy className="size-4" />}
-                      onClick={() => copyRsvpLink(g.rsvp_token)}
+                      onClick={() => copyRsvpLink(g)}
                     >
                       Copiar link
                     </Button>
