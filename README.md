@@ -71,6 +71,30 @@ La app está publicada en **https://robinszuniga.github.io/boda-robinson-angela/
 
 > Los links de RSVP se arman con el dominio desde el que los copias. Cópienlos o envíenlos por WhatsApp desde la versión publicada, no desde `localhost`.
 
+### Link corto de la invitación
+
+Para que la invitación no muestre la dirección larga de GitHub Pages, cada invitado
+puede tener un link corto guardado en `guests.short_url`. Si lo tiene, la app usa ese
+link en el mensaje de WhatsApp, en el botón de copiar y en el QR; si no, usa el largo
+de siempre. En **Enviar invitaciones** se avisa cuántos van todavía con el link largo.
+
+Los links se crean en TinyURL con un alias derivado del token, así que se pueden
+regenerar y volver a guardar sin depender de una lista:
+
+```
+alias  = BodaRobinsonAngela-<primeros 8 del rsvp_token>
+destino= https://robinszuniga.github.io/boda-robinson-angela/rsvp/<rsvp_token>
+```
+
+Para crear los que falten: `https://tinyurl.com/api-create.php?url=<destino>&alias=<alias>`
+(no necesita cuenta). Y para guardarlos, en el SQL Editor de Supabase:
+
+```sql
+update public.guests
+set short_url = 'https://tinyurl.com/BodaRobinsonAngela-' || left(rsvp_token, 8)
+where short_url is null;
+```
+
 Si algún día prefieren Vercel o Netlify, `vercel.json` y `public/_redirects` ya están listos (sin `BASE_PATH`, la app vive en la raíz).
 
 ## Scripts
