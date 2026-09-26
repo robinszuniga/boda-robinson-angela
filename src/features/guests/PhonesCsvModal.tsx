@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { AlertCircle, Download, Upload } from 'lucide-react'
 import { attemptLoud } from '../../lib/attempt'
 import { updateGuestsEach } from '../../lib/guestBulk'
 import { downloadCsv } from '../../lib/download'
 import { todayISO } from '../../lib/format'
-import { phonesCsv, readPhonesCsv, type PhoneRow } from '../../lib/phoneCsv'
+import { phonesCsv, type PhoneRow, type PhoneRowStatus } from '../../lib/phoneCsv'
+import { readPhonesFile } from '../../lib/googleContacts'
 import { formatPhone } from '../../lib/phones'
 import { Button } from '../../components/ui/Button'
 import { Field, Textarea } from '../../components/ui/Field'
@@ -17,13 +18,29 @@ import type { Guest } from '../../types/database'
 const problem = (r: PhoneRow) =>
   r.status === 'invalido' || r.status === 'desconocido' || r.status === 'repetido' || !!r.note
 
-/** Descarga la planilla y recibe el archivo lleno para guardar los teléfonos */
+/** Primero lo que hay que revisar y de último los que simplemente no aparecieron */
+const ORDER: Record<PhoneRowStatus, number> = {
+  invalido: 0,
+  repetido: 1,
+  desconocido: 2,
+  nuevo: 3,
+  cambio: 3,
+  igual: 4,
+  sin_telefono: 5,
+}
+
+/** Una agenda de Google es larga: no se pega entera en el cuadro de texto */
+const BIG = 20_000
+
+/** Recibe la planilla llena o la exportación de Google Contactos y guarda los teléfonos */
 export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: () => void }) {
   const qc = useQueryClient()
   const [text, setText] = useState('')
   const [saving, setSaving] = useState(false)
-  const result = text.trim() ? readPhonesCsv(text, guests) : null
-  const issues = result?.rows.filter(problem) ?? []
+  const result = useMemo(() => (text.trim() ? readPhonesFile(text, guests) : null), [text, guests])
+  const issues = (result?.rows ?? []).filter(problem).sort((a, b) => ORDER[a.status] - ORDER[b.status])
+  const google = result?.kind === 'google'
+  const big = text.length > BIG
 
   const readFile = async (file: File | undefined) => {
     if (!file) return
@@ -49,7 +66,7 @@ export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: 
       size="lg"
       onClose={onClose}
       title="Teléfonos por archivo"
-      description="Descarga la planilla, llénala en Excel y vuelve a subirla."
+      description="Súbelos desde tus contactos de Google o llena la planilla en Excel."
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -63,9 +80,19 @@ export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: 
     >
       <div className="flex flex-col gap-4">
         <div className="rounded-xl border border-line bg-ivory px-4 py-3">
-          <p className="text-sm">
-            1. Descarga la planilla con los {guests.length} invitados. 2. Escribe el teléfono de cada uno con
-            indicativo, por ejemplo <strong>573001234567</strong>. 3. Guárdala como CSV y súbela aquí.
+          <p className="text-sm font-medium">Desde tus contactos de Google</p>
+          <p className="mt-1 text-sm text-muted">
+            En <strong>contacts.google.com</strong> elige <strong>Exportar</strong>, formato{' '}
+            <strong>Google CSV</strong>, y sube aquí ese archivo. Busco a cada invitado por su nombre y te muestro qué
+            encontré antes de guardar nada. Los demás contactos se ignoran.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-line bg-ivory px-4 py-3">
+          <p className="text-sm font-medium">O a mano, en Excel</p>
+          <p className="mt-1 text-sm text-muted">
+            Descarga la planilla con los {guests.length} invitados, escribe el teléfono de cada uno con indicativo
+            (por ejemplo <strong>573001234567</strong>), guárdala como CSV y súbela.
           </p>
           <Button
             className="mt-2"
@@ -89,21 +116,33 @@ export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: 
               onChange={(e) => readFile(e.target.files?.[0])}
             />
           </label>
-          <span className="text-xs text-muted">o pega el contenido abajo</span>
+          <span className="text-xs text-muted">{big ? 'Archivo cargado' : 'o pega el contenido abajo'}</span>
         </div>
 
-        <Field label="Contenido del archivo" hint="Una línea por invitado: código, nombre, grupo y teléfono">
-          {(id) => (
-            <Textarea
-              id={id}
-              rows={5}
-              className="font-mono text-xs"
-              placeholder={'Código;Invitado;Grupo;Teléfono\n…;Tía Marta;Familia de la novia;573001234567'}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-            />
-          )}
-        </Field>
+        {big ? (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-line px-4 py-2 text-sm">
+            <span className="text-muted">
+              Archivo de {Math.round(text.length / 1024)} KB
+              {google ? ' · leído como contactos de Google' : ''}
+            </span>
+            <Button size="sm" variant="secondary" onClick={() => setText('')}>
+              Quitar
+            </Button>
+          </div>
+        ) : (
+          <Field label="Contenido del archivo" hint="La planilla de la app o el CSV de Google Contactos">
+            {(id) => (
+              <Textarea
+                id={id}
+                rows={5}
+                className="font-mono text-xs"
+                placeholder={'Código;Invitado;Grupo;Teléfono\n…;Tía Marta;Familia de la novia;573001234567'}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+              />
+            )}
+          </Field>
+        )}
 
         {result && (
           <div className="rounded-xl border border-line">
@@ -111,16 +150,18 @@ export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: 
               <span>
                 <strong className="tabular-nums">{result.counts.nuevo + result.counts.cambio}</strong> por guardar
               </span>
-              {result.counts.igual > 0 && <span className="text-muted">{result.counts.igual} sin cambio</span>}
+              {result.counts.igual > 0 && <span className="text-muted">{result.counts.igual} ya lo tenían</span>}
               {result.counts.sin_telefono > 0 && (
-                <span className="text-muted">{result.counts.sin_telefono} sin teléfono</span>
+                <span className="text-muted">
+                  {result.counts.sin_telefono} {google ? 'sin encontrar' : 'sin teléfono'}
+                </span>
               )}
               {result.counts.invalido > 0 && <span className="text-red-700">{result.counts.invalido} con error</span>}
               {result.counts.desconocido > 0 && (
                 <span className="text-red-700">{result.counts.desconocido} no están en la lista</span>
               )}
               {result.counts.repetido > 0 && (
-                <span className="text-red-700">{result.counts.repetido} con nombre repetido</span>
+                <span className="text-amber-700">{result.counts.repetido} con varios parecidos</span>
               )}
             </div>
             {issues.length > 0 && (
@@ -130,9 +171,11 @@ export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: 
                     <span className="min-w-0 truncate">{r.name}</span>
                     <span
                       className={
-                        r.status === 'invalido' || r.status === 'desconocido' || r.status === 'repetido'
+                        r.status === 'invalido' || r.status === 'desconocido'
                           ? 'inline-flex shrink-0 items-center gap-1 text-xs text-red-700'
-                          : 'shrink-0 text-xs text-amber-700'
+                          : r.status === 'repetido'
+                            ? 'inline-flex shrink-0 items-center gap-1 text-xs text-amber-700'
+                            : 'shrink-0 max-w-[60%] truncate text-xs text-muted'
                       }
                     >
                       {(r.status === 'invalido' || r.status === 'desconocido' || r.status === 'repetido') && (
@@ -140,7 +183,7 @@ export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: 
                       )}
                       {r.status === 'desconocido'
                         ? 'No está en la lista'
-                        : `${r.note ?? ''}${r.phone ? ` · ${formatPhone(r.phone)}` : r.raw ? ` · ${r.raw}` : ''}`}
+                        : `${r.note ?? ''}${r.phone ? ` · ${formatPhone(r.phone)}` : r.raw && r.status !== 'repetido' ? ` · ${r.raw}` : ''}`}
                     </span>
                   </li>
                 ))}

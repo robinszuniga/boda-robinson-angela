@@ -63,13 +63,26 @@ export interface PhoneRow {
 }
 
 export interface PhoneImport {
+  /** De dónde salió: la planilla de la app o una exportación de Google Contactos */
+  kind: 'planilla' | 'google'
   rows: PhoneRow[]
   /** Lo que se va a guardar */
   updates: { id: string; phone: string }[]
   counts: Record<PhoneRowStatus, number>
 }
 
-const key = (name: string) =>
+export const emptyCounts = (): Record<PhoneRowStatus, number> => ({
+  nuevo: 0,
+  cambio: 0,
+  igual: 0,
+  sin_telefono: 0,
+  invalido: 0,
+  desconocido: 0,
+  repetido: 0,
+})
+
+/** Nombre comparable: sin mayúsculas, sin tildes y sin espacios de más */
+export const nameKey = (name: string) =>
   name
     .trim()
     .toLowerCase()
@@ -83,7 +96,7 @@ const key = (name: string) =>
  */
 export function readPhonesCsv(text: string, guests: Guest[]): PhoneImport {
   const table = parseCsv(text)
-  const header = (table[0] ?? []).map((h) => key(h))
+  const header = (table[0] ?? []).map((h) => nameKey(h))
   const idCol = header.findIndex((h) => h === 'codigo' || h === 'id')
   const nameCol = header.findIndex((h) => h.includes('invitado') || h === 'nombre')
   const phoneCol = header.findIndex((h) => h.includes('telefono') || h.includes('celular') || h === 'phone')
@@ -94,7 +107,7 @@ export function readPhonesCsv(text: string, guests: Guest[]): PhoneImport {
 
   const byId = new Map(guests.map((g) => [g.id, g]))
   const byName = new Map<string, Guest>()
-  for (const g of guests) if (!byName.has(key(g.name))) byName.set(key(g.name), g)
+  for (const g of guests) if (!byName.has(nameKey(g.name))) byName.set(nameKey(g.name), g)
 
   // Si dos filas caen en el mismo invitado (nombres repetidos sin código), no se adivina
   const seen = new Set<string>()
@@ -102,7 +115,7 @@ export function readPhonesCsv(text: string, guests: Guest[]): PhoneImport {
     const raw = (cells[phoneAt] ?? '').trim()
     const fileName = (cells[nameAt] ?? '').trim()
     const byIdMatch = idCol >= 0 ? byId.get((cells[idCol] ?? '').trim()) : undefined
-    const guest = byIdMatch ?? byName.get(key(fileName))
+    const guest = byIdMatch ?? byName.get(nameKey(fileName))
     if (!guest) return { guestId: null, name: fileName || '(sin nombre)', raw, phone: null, status: 'desconocido' }
     if (!byIdMatch && seen.has(guest.id)) {
       return {
@@ -129,18 +142,11 @@ export function readPhonesCsv(text: string, guests: Guest[]): PhoneImport {
     }
   })
 
-  const counts: Record<PhoneRowStatus, number> = {
-    nuevo: 0,
-    cambio: 0,
-    igual: 0,
-    sin_telefono: 0,
-    invalido: 0,
-    desconocido: 0,
-    repetido: 0,
-  }
+  const counts = emptyCounts()
   for (const r of rows) counts[r.status]++
 
   return {
+    kind: 'planilla',
     rows,
     updates: rows
       .filter((r) => r.guestId && r.phone && (r.status === 'nuevo' || r.status === 'cambio'))
