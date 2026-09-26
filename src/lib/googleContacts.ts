@@ -5,14 +5,13 @@ import {
   nameKey,
   parseCsv,
   readPhonesCsv,
+  toUpdates,
+  type Contact,
   type PhoneImport,
   type PhoneRow,
 } from './phoneCsv'
 
-export interface Contact {
-  name: string
-  phone: string
-}
+export type { Contact }
 
 /** Columnas de teléfono de Google: "Phone 1 - Value", "Phone 2 - Value"… */
 const PHONE_COLUMN = /^phone \d+ - value$/
@@ -119,14 +118,7 @@ export function matchContacts(contacts: Contact[], guests: Guest[]): PhoneImport
   const counts = emptyCounts()
   for (const r of rows) counts[r.status]++
 
-  return {
-    kind: 'google',
-    rows,
-    updates: rows
-      .filter((r) => r.guestId && r.phone && (r.status === 'nuevo' || r.status === 'cambio'))
-      .map((r) => ({ id: r.guestId!, phone: r.phone! })),
-    counts,
-  }
+  return { kind: 'google', rows, contacts, updates: toUpdates(rows), counts }
 }
 
 /** Lee el archivo, sea la planilla de la app o la exportación de Google */

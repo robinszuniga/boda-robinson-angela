@@ -62,14 +62,29 @@ export interface PhoneRow {
   note?: string
 }
 
+export interface Contact {
+  name: string
+  phone: string
+}
+
+/** Como se ve un contacto en el buscador: sirve para reconocer dos que se llamen igual */
+export const contactLabel = (c: Contact) => `${c.name} — ${c.phone}`
+
 export interface PhoneImport {
   /** De dónde salió: la planilla de la app o una exportación de Google Contactos */
   kind: 'planilla' | 'google'
   rows: PhoneRow[]
+  /** La agenda del archivo, para poder asignar a mano */
+  contacts: Contact[]
   /** Lo que se va a guardar */
   updates: { id: string; phone: string }[]
   counts: Record<PhoneRowStatus, number>
 }
+
+export const toUpdates = (rows: PhoneRow[]) =>
+  rows
+    .filter((r) => r.guestId && r.phone && (r.status === 'nuevo' || r.status === 'cambio'))
+    .map((r) => ({ id: r.guestId!, phone: r.phone! }))
 
 export const emptyCounts = (): Record<PhoneRowStatus, number> => ({
   nuevo: 0,
@@ -145,12 +160,51 @@ export function readPhonesCsv(text: string, guests: Guest[]): PhoneImport {
   const counts = emptyCounts()
   for (const r of rows) counts[r.status]++
 
-  return {
-    kind: 'planilla',
-    rows,
-    updates: rows
-      .filter((r) => r.guestId && r.phone && (r.status === 'nuevo' || r.status === 'cambio'))
-      .map((r) => ({ id: r.guestId!, phone: r.phone! })),
-    counts,
+  return { kind: 'planilla', rows, contacts: [], updates: toUpdates(rows), counts }
+}
+
+/**
+ * Aplica lo que el novio asignó a mano: por cada invitado, un contacto de la
+ * agenda o un número escrito directamente. Manda sobre lo que encontró solo.
+ */
+export function applyManual(base: PhoneImport, guests: Guest[], manual: Record<string, string>): PhoneImport {
+  const entries = Object.entries(manual).filter(([, value]) => value.trim())
+  if (entries.length === 0) return base
+
+  const byId = new Map(guests.map((g) => [g.id, g]))
+  const byLabel = new Map<string, Contact>()
+  const byContactName = new Map<string, Contact>()
+  for (const c of base.contacts) {
+    byLabel.set(nameKey(contactLabel(c)), c)
+    if (!byContactName.has(nameKey(c.name))) byContactName.set(nameKey(c.name), c)
   }
+
+  const hechos = new Map<string, PhoneRow>()
+  for (const [guestId, value] of entries) {
+    const guest = byId.get(guestId)
+    if (!guest) continue
+    const written = value.trim()
+    const contact = byLabel.get(nameKey(written)) ?? byContactName.get(nameKey(written))
+    const raw = contact ? contact.phone : written
+    const check = normalizePhone(raw)
+    const row = { guestId, name: guest.name, raw }
+    if (!check.digits) {
+      hechos.set(guestId, { ...row, phone: null, status: 'invalido', note: check.error ?? 'No parece un número' })
+      continue
+    }
+    hechos.set(guestId, {
+      ...row,
+      phone: check.digits,
+      status: check.digits === guest.phone ? 'igual' : guest.phone ? 'cambio' : 'nuevo',
+      note: ['A mano', contact && `Contacto: ${contact.name}`, check.warning].filter(Boolean).join(' · '),
+    })
+  }
+
+  const rows = base.rows.map((r) => (r.guestId && hechos.get(r.guestId)) || r)
+  const yaEstan = new Set(base.rows.map((r) => r.guestId))
+  for (const [guestId, row] of hechos) if (!yaEstan.has(guestId)) rows.push(row)
+
+  const counts = emptyCounts()
+  for (const r of rows) counts[r.status]++
+  return { ...base, rows, counts, updates: toUpdates(rows) }
 }
