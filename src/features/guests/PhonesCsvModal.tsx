@@ -64,9 +64,10 @@ export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: 
     const row = rowOf.get(g.id)
     return !g.phone && (!row || !row.phone)
   }
+  // Al que se le acaba de escribir el número se queda en la lista, para poder revisarlo
   const buscados = search.trim()
     ? guests.filter((g) => nameKey(g.name).includes(nameKey(search)))
-    : guests.filter(pendiente)
+    : guests.filter((g) => pendiente(g) || manual[g.id]?.trim())
 
   const save = async () => {
     if (result.updates.length === 0) return
@@ -77,7 +78,7 @@ export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: 
     setSaving(false)
     await qc.invalidateQueries({ queryKey: tableKey('guests') })
     if (!ok) return
-    toast.success(`${result.updates.length} teléfonos guardados`)
+    toast.success(result.updates.length === 1 ? 'Teléfono guardado' : `${result.updates.length} teléfonos guardados`)
     onClose()
   }
 
@@ -94,7 +95,11 @@ export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: 
             Cancelar
           </Button>
           <Button onClick={save} disabled={result.updates.length === 0 || saving}>
-            {saving ? 'Guardando…' : `Guardar ${result.updates.length || ''} teléfonos`}
+            {saving
+              ? 'Guardando…'
+              : result.updates.length === 1
+                ? 'Guardar 1 teléfono'
+                : `Guardar ${result.updates.length || ''} teléfonos`}
           </Button>
         </>
       }
