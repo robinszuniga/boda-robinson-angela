@@ -127,8 +127,11 @@ describe('applyManual', () => {
 
   it('avisa si lo escrito no sirve como teléfono y no lo guarda', () => {
     const result = applyManual(base, [marta], { [marta.id]: 'el de la finca' })
-    expect(result.rows[0]).toMatchObject({ status: 'invalido' })
+    expect(result.rows[0]).toMatchObject({ status: 'invalido', note: 'Elige un contacto de la lista' })
     expect(result.updates).toEqual([])
+    // Sin agenda cargada, lo que se escribe solo puede ser un número
+    const sinAgenda = applyManual({ ...base, contacts: [] }, [marta], { [marta.id]: 'el de la finca' })
+    expect(sinAgenda.rows[0]).toMatchObject({ status: 'invalido', note: 'No tiene números' })
   })
 
   it('manda sobre lo que el archivo había encontrado y deja quietos a los demás', () => {

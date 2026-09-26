@@ -189,7 +189,10 @@ export function applyManual(base: PhoneImport, guests: Guest[], manual: Record<s
     const check = normalizePhone(raw)
     const row = { guestId, name: guest.name, raw }
     if (!check.digits) {
-      hechos.set(guestId, { ...row, phone: null, status: 'invalido', note: check.error ?? 'No parece un número' })
+      // Si está escribiendo el apodo de un contacto, no es un error: le falta elegirlo
+      const buscando = base.contacts.length > 0 && !/\d/.test(written)
+      const note = buscando ? 'Elige un contacto de la lista' : (check.error ?? 'No parece un número')
+      hechos.set(guestId, { ...row, phone: null, status: 'invalido', note })
       continue
     }
     hechos.set(guestId, {
