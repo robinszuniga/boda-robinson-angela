@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -24,7 +24,6 @@ import {
 import { supabase } from '../../lib/supabase'
 import { safeUrl } from '../../lib/contact'
 import { formatCOP, formatDate, formatWeddingDate, todayISO } from '../../lib/format'
-import { describeError } from '../../lib/errors'
 import { getCountdown } from '../../lib/countdown'
 import { Button } from '../../components/ui/Button'
 import { ErrorState, LoadingState } from '../../components/ui/Display'
@@ -69,7 +68,9 @@ export default function PublicRsvpPage() {
         <div className="rounded-3xl bg-white p-8 text-center shadow-sm">
           <Heart className="mx-auto size-8 text-accent-300" />
           <h1 className="mt-3 text-2xl font-semibold">No encontramos esta invitación</h1>
-          <p className="mt-2 text-sm text-muted">Revisa que el enlace esté completo o pídeselo de nuevo a los novios.</p>
+          <p className="mt-2 text-base text-muted">
+            Revisa que el enlace esté completo, o respóndele al WhatsApp por el que te llegó y te lo mandan de nuevo.
+          </p>
         </div>
       </Shell>
     )
@@ -107,7 +108,7 @@ function Invitation({ data, token }: { data: RsvpView; token: string }) {
           <span className="block text-3xl text-accent-400 italic sm:text-4xl">&amp;</span>
           {wedding.partner_2_name}
         </h1>
-        <div className="mx-auto mt-6 flex max-w-sm flex-col items-center gap-2 text-sm">
+        <div className="mx-auto mt-6 flex max-w-sm flex-col items-center gap-2 text-base">
           <p>
             <CalendarDays className="mr-1.5 inline size-4 -translate-y-px text-brand-500" />
             {formatWeddingDate(wedding.wedding_date)}
@@ -116,16 +117,24 @@ function Invitation({ data, token }: { data: RsvpView; token: string }) {
             <p>
               <MapPin className="mr-1.5 inline size-4 -translate-y-px text-brand-500" />
               {mapUrl ? (
-                <a href={mapUrl} target="_blank" rel="noreferrer" className="underline-offset-2 hover:underline">
+                <a
+                  href={mapUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-brand-700 underline underline-offset-2"
+                >
                   {wedding.venue_name}
                   {wedding.venue_address && `, ${wedding.venue_address}`}
+                  <span className="whitespace-nowrap"> · cómo llegar</span>
                 </a>
               ) : (
                 wedding.venue_name
               )}
             </p>
           )}
-          {days > 0 && <p className="text-xs text-muted">Faltan {days} días</p>}
+          {days > 0 && (
+            <p className="text-sm text-muted">{days === 1 ? 'Falta 1 día' : `Faltan ${days} días`}</p>
+          )}
         </div>
         {wedding.guest_message && (
           <p className="mx-auto mt-6 max-w-md font-display text-lg leading-relaxed text-ink/80 italic">“{wedding.guest_message}”</p>
@@ -272,6 +281,12 @@ function RsvpForm({
   const [needsTransport, setNeedsTransport] = useState(guest.needs_transport)
   const [message, setMessage] = useState(guest.guest_message ?? '')
 
+  // Qué le falta por llenar, para decírselo junto al campo y no en un aviso que se va
+  const [falta, setFalta] = useState<'asistencia' | 'nombres' | null>(null)
+  const asistenciaRef = useRef<HTMLDivElement>(null)
+  const nombresRef = useRef<HTMLFieldSetElement>(null)
+  const respuestaRef = useRef<HTMLHeadingElement>(null)
+
   const setMember = (id: string, patch: Partial<MemberState[string]>) =>
     setMembers((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }))
 
@@ -303,20 +318,32 @@ function RsvpForm({
     onSuccess: (data) => {
       qc.setQueryData(['rsvp', token], data)
       setEditing(false)
+      toast.success('Listo, recibimos tu respuesta')
     },
-    onError: (error) => toast.error(describeError(error)),
+    // El error lo avisa el manejador general; aquí saldría dos veces
   })
+
+  // Al responder, el formulario largo se cambia por una tarjeta corta: hay que
+  // llevar al invitado hasta ella o queda mirando la pantalla sin saber si pasó algo
+  useEffect(() => {
+    if (editing || !submit.isSuccess) return
+    const titulo = respuestaRef.current
+    titulo?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    titulo?.focus({ preventScroll: true })
+  }, [editing, submit.isSuccess])
 
   if (!editing) {
     const yes = guest.rsvp_status === 'confirmado'
     const coming = guest.members.filter((m) => m.attending).map((m) => m.name)
     return (
-      <section className="rounded-3xl bg-white p-6 text-center shadow-sm">
+      <section className="rounded-3xl bg-white p-6 text-center shadow-sm" role="status">
         <div className={cn('mx-auto flex size-12 items-center justify-center rounded-full', yes ? 'bg-brand-50 text-brand-600' : 'bg-stone-100 text-muted')}>
           {yes ? <PartyPopper className="size-6" /> : <Heart className="size-6" />}
         </div>
-        <h2 className="mt-3 text-2xl font-semibold">{yes ? `¡Qué alegría, ${guest.name}!` : `Gracias por avisarnos, ${guest.name}`}</h2>
-        <p className="mt-2 text-sm text-muted">
+        <h2 ref={respuestaRef} tabIndex={-1} className="mt-3 text-2xl font-semibold outline-none">
+          {yes ? `¡Qué alegría, ${guest.name}!` : `Gracias por avisarnos, ${guest.name}`}
+        </h2>
+        <p className="mt-2 text-base text-muted">
           {yes
             ? coming.length > 0
               ? `Confirmaste tu asistencia con ${joinNames(coming)}.`
@@ -342,8 +369,9 @@ function RsvpForm({
       </p>
 
       {deadlinePassed ? (
-        <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          La fecha para confirmar ya pasó. Escríbeles directamente a los novios.
+        <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-base text-amber-900">
+          La fecha para confirmar ya pasó. Respóndele al mismo WhatsApp por el que te llegó la invitación y lo
+          arreglamos.
         </p>
       ) : (
         <form
@@ -351,16 +379,23 @@ function RsvpForm({
           onSubmit={(e) => {
             e.preventDefault()
             if (attending === null) {
-              toast.error('Cuéntanos si asistirás')
+              setFalta('asistencia')
+              asistenciaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              asistenciaRef.current?.querySelector('button')?.focus({ preventScroll: true })
               return
             }
             if (attending && askNames && companionNames.some((n) => !n)) {
-              toast.error('Escribe el nombre de cada acompañante')
+              setFalta('nombres')
+              const vacio = companionNames.findIndex((n) => !n)
+              nombresRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              nombresRef.current?.querySelectorAll('input')[vacio]?.focus({ preventScroll: true })
               return
             }
+            setFalta(null)
             submit.mutate()
           }}
         >
+          <div ref={asistenciaRef}>
           <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="¿Asistirás?">
             {[
               { value: true, label: '¡Sí, ahí estaré!' },
@@ -371,20 +406,29 @@ function RsvpForm({
                 type="button"
                 role="radio"
                 aria-checked={attending === o.value}
-                onClick={() => setAttending(o.value)}
+                onClick={() => {
+                  setAttending(o.value)
+                  setFalta(null)
+                }}
                 className={cn(
                   'flex items-center justify-center gap-2 rounded-2xl border-2 px-3 py-4 text-sm font-medium transition',
                   attending === o.value
                     ? o.value
                       ? 'border-brand-600 bg-brand-50 text-brand-800'
                       : 'border-stone-500 bg-stone-50'
-                    : 'border-line hover:border-brand-300',
+                    : 'border-field hover:border-brand-500',
                 )}
               >
                 {attending === o.value && <Check className="size-4" />}
                 {o.label}
               </button>
             ))}
+          </div>
+          {falta === 'asistencia' && (
+            <p className="mt-2 text-sm font-medium text-red-700" role="alert">
+              Falta esto: cuéntanos si nos acompañas.
+            </p>
+          )}
           </div>
 
           {attending && hasMembers && (
@@ -433,25 +477,34 @@ function RsvpForm({
                 )}
               </Field>
               {plusOnes > 0 && (
-                <fieldset className="flex flex-col gap-2">
+                <fieldset ref={nombresRef} className="flex flex-col gap-3">
                   <legend className="mb-1.5 text-sm font-medium">¿Cómo se llaman?</legend>
                   {Array.from({ length: plusOnes }, (_, i) => (
-                    <Input
-                      key={i}
-                      aria-label={`Nombre del acompañante ${i + 1}`}
-                      placeholder={`Nombre del acompañante ${i + 1}`}
-                      maxLength={120}
-                      value={names[i] ?? ''}
-                      onChange={(e) =>
-                        setNames((prev) => {
-                          const next = [...prev]
-                          next[i] = e.target.value
-                          return next
-                        })
-                      }
-                    />
+                    <label key={i} className="flex flex-col gap-1 text-sm font-medium">
+                      Acompañante {i + 1}
+                      <Input
+                        placeholder="Nombre y apellido"
+                        maxLength={120}
+                        aria-invalid={falta === 'nombres' && !names[i]?.trim() ? true : undefined}
+                        value={names[i] ?? ''}
+                        onChange={(e) => {
+                          setFalta(null)
+                          setNames((prev) => {
+                            const next = [...prev]
+                            next[i] = e.target.value
+                            return next
+                          })
+                        }}
+                      />
+                    </label>
                   ))}
-                  <p className="text-xs text-muted">Así sabemos a quién sentar contigo y cómo hacer su tarjeta.</p>
+                  {falta === 'nombres' ? (
+                    <p className="text-sm font-medium text-red-700" role="alert">
+                      Falta el nombre de cada acompañante.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted">Así sabemos a quién sentar contigo y cómo hacer su tarjeta.</p>
+                  )}
                 </fieldset>
               )}
             </>
@@ -516,10 +569,8 @@ function GiftList({ gifts, token, envelopeRain }: { gifts: RsvpGiftView[]; token
       qc.setQueryData(['rsvp', token], data)
       toast.success(vars.value ? '¡Gracias! Quedó apartado a tu nombre' : 'Listo, lo liberamos')
     },
-    onError: (error) => {
-      toast.error(describeError(error))
-      qc.invalidateQueries({ queryKey: ['rsvp', token] })
-    },
+    // El aviso de error lo da el manejador general; aquí solo se recargan los cupos
+    onError: () => void qc.invalidateQueries({ queryKey: ['rsvp', token] }),
   })
 
   const copy = async (text: string) => {
@@ -527,7 +578,7 @@ function GiftList({ gifts, token, envelopeRain }: { gifts: RsvpGiftView[]; token
       await navigator.clipboard.writeText(text)
       toast.success('Datos copiados')
     } catch {
-      toast.error('No se pudo copiar')
+      toast.error('No se pudo copiar. Mantén presionados los datos para copiarlos.')
     }
   }
 
@@ -554,10 +605,10 @@ function GiftList({ gifts, token, envelopeRain }: { gifts: RsvpGiftView[]; token
           const store = safeUrl(g.store_url)
           const taken = g.kind === 'articulo' && g.remaining === 0 && !g.claimed_by_me
           return (
-            <li key={g.id} className={cn('rounded-2xl border p-4', g.claimed_by_me ? 'border-brand-300 bg-brand-50/60' : 'border-line', taken && 'opacity-60')}>
+            <li key={g.id} className={cn('rounded-2xl border p-4', g.claimed_by_me ? 'border-brand-300 bg-brand-50/60' : 'border-line')}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="flex items-center gap-2 font-medium">
+                  <p className={cn('flex items-center gap-2 font-medium', taken && 'text-muted')}>
                     {g.kind === 'efectivo' && <Banknote className="size-4 text-brand-500" />}
                     {g.name}
                   </p>
@@ -565,19 +616,31 @@ function GiftList({ gifts, token, envelopeRain }: { gifts: RsvpGiftView[]; token
                   {g.description && <p className="mt-1 text-sm text-muted">{g.description}</p>}
                 </div>
                 {taken ? (
-                  <span className="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-muted">Ya lo apartaron</span>
+                  <span className="shrink-0 rounded-full bg-stone-100 px-2.5 py-1 text-sm text-stone-700">Ya lo apartaron</span>
                 ) : g.claimed_by_me ? (
-                  <Button size="sm" variant="ghost" disabled={claim.isPending} onClick={() => claim.mutate({ id: g.id, value: false })}>
-                    Soltar
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={claim.isPending}
+                    aria-label={`Ya no voy a regalar: ${g.name}`}
+                    onClick={() => claim.mutate({ id: g.id, value: false })}
+                  >
+                    Ya no lo voy a regalar
                   </Button>
                 ) : (
-                  <Button size="sm" variant="secondary" disabled={claim.isPending} onClick={() => claim.mutate({ id: g.id, value: true })}>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={claim.isPending}
+                    aria-label={`${g.kind === 'efectivo' ? 'Voy a aportar' : 'Lo regalo yo'}: ${g.name}`}
+                    onClick={() => claim.mutate({ id: g.id, value: true })}
+                  >
                     {g.kind === 'efectivo' ? 'Voy a aportar' : 'Lo regalo yo'}
                   </Button>
                 )}
               </div>
               {g.claimed_by_me && (
-                <p className="mt-2 flex items-center gap-1 text-xs font-medium text-brand-700">
+                <p className="mt-2 flex items-center gap-1 text-sm font-medium text-brand-700">
                   <Check className="size-3.5" /> {g.kind === 'efectivo' ? 'Nos avisaste que vas a aportar' : 'Apartado por ti'}
                 </p>
               )}
