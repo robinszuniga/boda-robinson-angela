@@ -1,6 +1,6 @@
 import type { Guest } from '../types/database'
 import { guestGroup } from './labels'
-import { normalizePhone } from './phones'
+import { checkTypedPhone, normalizePhone } from './phones'
 
 export const PHONE_CSV_HEADER = ['Código', 'Invitado', 'Grupo', 'Teléfono'] as const
 
@@ -100,17 +100,42 @@ export function buildImport(
   contacts: Contact[],
   guests: Guest[],
 ): PhoneImport {
-  // El teléfono que tendría cada invitado si se guarda todo
-  const final = new Map<string, string>()
-  for (const g of guests) if (g.phone) final.set(g.id, g.phone)
-  for (const r of rows) if (guarda(r)) final.set(r.guestId!, r.phone!)
-  const dueños = new Map<string, number>()
-  for (const phone of final.values()) dueños.set(phone, (dueños.get(phone) ?? 0) + 1)
+  // Hay teléfonos viejos guardados como se tecleaban ("300 6551912"): se comparan
+  // ya limpios, o el mismo número no se reconocería como repetido
+  const limpio = (phone: string) => normalizePhone(phone).digits ?? phone
+  const guardado = new Map<string, string>()
+  for (const g of guests) if (g.phone) guardado.set(g.id, limpio(g.phone))
   const guardadoEn = new Map<string, Guest>()
-  for (const g of guests) if (g.phone && !guardadoEn.has(g.phone)) guardadoEn.set(g.phone, g)
+  for (const g of guests) if (g.phone && !guardadoEn.has(limpio(g.phone))) guardadoEn.set(limpio(g.phone), g)
 
-  const out = rows.map((r): PhoneRow => {
-    if (!guarda(r) || (dueños.get(r.phone!) ?? 0) < 2) return r
+  // El teléfono con que quedaría cada invitado: el nuevo si su fila pasa, el
+  // guardado si se bloquea
+  const quedaria = (bloqueadas: Set<number>) => {
+    const final = new Map(guardado)
+    rows.forEach((r, i) => {
+      if (guarda(r) && !bloqueadas.has(i)) final.set(r.guestId!, r.phone!)
+    })
+    return final
+  }
+
+  // Se bloquea por vueltas: al bloquear una fila ese invitado se queda con su
+  // número de antes, y ese número puede chocar ahora con otra fila (Ana no se
+  // puede pasar al de Bruno, así que Carla ya no puede tomar el de Ana).
+  // Solo se agregan bloqueos, así que termina.
+  const bloqueadas = new Set<number>()
+  for (;;) {
+    const dueños = new Map<string, number>()
+    for (const phone of quedaria(bloqueadas).values()) dueños.set(phone, (dueños.get(phone) ?? 0) + 1)
+    const nuevas = rows.flatMap((r, i) =>
+      guarda(r) && !bloqueadas.has(i) && (dueños.get(r.phone!) ?? 0) > 1 ? [i] : [],
+    )
+    if (nuevas.length === 0) break
+    for (const i of nuevas) bloqueadas.add(i)
+  }
+  const final = quedaria(bloqueadas)
+
+  const out = rows.map((r, i): PhoneRow => {
+    if (!bloqueadas.has(i)) return r
     const otro = guardadoEn.get(r.phone!)
     const deOtro = otro && otro.id !== r.guestId && final.get(otro.id) === r.phone
     return {
@@ -179,14 +204,17 @@ export function readPhonesCsv(text: string, guests: Guest[]): PhoneImport {
     const byIdMatch = idCol >= 0 ? byId.get((cells[idCol] ?? '').trim()) : undefined
     const guest = byIdMatch ?? byName.get(nameKey(fileName))
     if (!guest) return { guestId: null, name: fileName || '(sin nombre)', raw, phone: null, status: 'desconocido' }
-    if (!byIdMatch && (homonimos.has(nameKey(fileName)) || seen.has(guest.id))) {
+    // El mismo invitado dos veces tampoco, aunque venga con su código: se toma
+    // la primera fila y se avisa de la otra (si no, al guardar ganaría cualquiera)
+    const homonimo = !byIdMatch && homonimos.has(nameKey(fileName))
+    if (homonimo || seen.has(guest.id)) {
       return {
         guestId: null,
         name: fileName,
         raw,
         phone: null,
         status: 'repetido',
-        note: 'Nombre repetido: usa la columna Código',
+        note: byIdMatch ? 'Ese invitado viene dos veces en el archivo' : 'Nombre repetido: usa la columna Código',
       }
     }
     seen.add(guest.id)
@@ -195,7 +223,9 @@ export function readPhonesCsv(text: string, guests: Guest[]): PhoneImport {
     if (!raw) return { ...base, phone: null, status: 'sin_telefono' }
     const check = normalizePhone(raw)
     if (!check.digits) return { ...base, phone: null, status: 'invalido', note: check.error }
-    if (check.digits === guest.phone) return { ...base, phone: check.digits, status: 'igual', note: check.warning }
+    if (check.digits === normalizePhone(guest.phone).digits) {
+      return { ...base, phone: check.digits, status: 'igual', note: check.warning }
+    }
     return {
       ...base,
       phone: check.digits,
@@ -230,27 +260,20 @@ export function applyManual(base: PhoneImport, guests: Guest[], manual: Record<s
     const written = value.trim()
     const contact = byLabel.get(nameKey(written)) ?? byContactName.get(nameKey(written))
     const raw = contact ? contact.phone : written
-    const check = normalizePhone(raw)
+    // Lo escrito a mano tiene que venir completo; lo de la agenda se toma como está
+    const check = contact ? normalizePhone(raw) : checkTypedPhone(raw)
     const row = { guestId, name: guest.name, raw }
-    // Mientras escribe un celular, a los 8 dígitos ya pasaría como válido pero
-    // sin indicativo, y así no sirve para WhatsApp. Se espera a que lo termine.
-    const digitos = raw.replace(/\D/g, '').length
-    const aMedias = !contact && !written.startsWith('+') && digitos > 0 && digitos < 10
-    if (!check.digits || aMedias) {
+    if (!check.digits) {
       // Si está escribiendo el apodo de un contacto, no es un error: le falta elegirlo
       const buscando = base.contacts.length > 0 && !/\d/.test(written)
-      const note = buscando
-        ? 'Elige un contacto de la lista'
-        : aMedias
-          ? 'Número incompleto'
-          : (check.error ?? 'No parece un número')
+      const note = buscando ? 'Elige un contacto de la lista' : (check.error ?? 'No parece un número')
       hechos.set(guestId, { ...row, phone: null, status: 'invalido', note })
       continue
     }
     hechos.set(guestId, {
       ...row,
       phone: check.digits,
-      status: check.digits === guest.phone ? 'igual' : guest.phone ? 'cambio' : 'nuevo',
+      status: check.digits === normalizePhone(guest.phone).digits ? 'igual' : guest.phone ? 'cambio' : 'nuevo',
       note: ['A mano', contact && `Contacto: ${contact.name}`, check.warning].filter(Boolean).join(' · '),
     })
   }

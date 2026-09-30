@@ -5,6 +5,7 @@ import { Bus, Copy, MessageSquareQuote, Music, Plus, Trash2, X } from 'lucide-re
 import { guestMembersApi, guestsApi, seatingTablesApi } from '../../lib/api'
 import { attempt } from '../../lib/attempt'
 import { formatDate } from '../../lib/format'
+import { checkTypedPhone } from '../../lib/phones'
 import { ageGroup, guestGroup, options, rsvpStatus } from '../../lib/labels'
 import { Button, IconButton } from '../../components/ui/Button'
 import { Field, FormGrid, Input, Select, Textarea } from '../../components/ui/Field'
@@ -128,7 +129,9 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
       guest_group: v.guest_group,
       age_group: v.age_group,
       circle: v.circle.trim() || null,
-      phone: v.phone.trim() || null,
+      // Igual que al importar: con el 57 y solo dígitos, o WhatsApp y los
+      // avisos de número repetido no lo reconocen
+      phone: v.phone.trim() ? checkTypedPhone(v.phone).digits : null,
       email: v.email.trim() || null,
       plus_ones_allowed: allowedN,
       plus_ones_confirmed: confirmedN,
@@ -426,8 +429,19 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
         </fieldset>
 
         <FormGrid>
-          <Field label="Teléfono / WhatsApp">
-            {(id) => <Input id={id} type="tel" inputMode="tel" placeholder="300 123 4567" {...register('phone')} />}
+          <Field label="Teléfono / WhatsApp" error={errors.phone?.message}>
+            {(id, extras) => (
+              <Input
+                id={id}
+                {...extras}
+                type="tel"
+                inputMode="tel"
+                placeholder="300 123 4567"
+                {...register('phone', {
+                  validate: (v) => !v.trim() || !!checkTypedPhone(v).digits || (checkTypedPhone(v).error ?? 'Revisa el número'),
+                })}
+              />
+            )}
           </Field>
           <Field label="Correo">{(id) => <Input id={id} type="email" {...register('email')} />}</Field>
           <Field label="Mesa">

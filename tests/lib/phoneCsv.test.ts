@@ -112,6 +112,67 @@ describe('seguridad y casos raros del CSV', () => {
     expect(result.rows[0]).toMatchObject({ status: 'repetido', note: 'Ese número ya es de Raul Daza' })
   })
 
+  it('reconoce el número repetido aunque el otro lo tenga guardado como se tecleó', () => {
+    // Así quedaron guardados los que se escribieron a mano en el formulario
+    const alberto = guest({ name: 'Alberto Cuan', phone: '300 6551912' })
+    const otro = guest({ name: 'Rafa Zuñiga' })
+    const result = readPhonesCsv(['Nombre;Teléfono', 'Rafa Zuñiga;3006551912'].join('\n'), [alberto, otro])
+    expect(result.updates).toEqual([])
+    expect(result.rows[0]).toMatchObject({ status: 'repetido', note: 'Ese número ya es de Alberto Cuan' })
+  })
+
+  it('en cadena: si una fila se bloquea, ese invitado conserva su número y nadie más lo puede tomar', () => {
+    // Ana no se puede pasar al de Bruno; entonces Carla tampoco puede quedarse con el de Ana
+    const ana = guest({ name: 'Ana', phone: '573001110000' })
+    const bruno = guest({ name: 'Bruno', phone: '573002220000' })
+    const carla = guest({ name: 'Carla' })
+    const csv = ['Código;Invitado;Teléfono', `${ana.id};Ana;573002220000`, `${carla.id};Carla;573001110000`].join('\n')
+    const result = readPhonesCsv(csv, [ana, bruno, carla])
+    expect(result.updates).toEqual([])
+    expect(result.rows[0]).toMatchObject({ status: 'repetido', note: 'Ese número ya es de Bruno' })
+    expect(result.rows[1]).toMatchObject({ status: 'repetido', note: 'Ese número ya es de Ana' })
+  })
+
+  it('en cadena también cuando el primer bloqueo es entre dos filas nuevas', () => {
+    const ana = guest({ name: 'Ana', phone: '573001110000' })
+    const bruno = guest({ name: 'Bruno' })
+    const carla = guest({ name: 'Carla' })
+    const csv = [
+      'Código;Invitado;Teléfono',
+      `${ana.id};Ana;573003330000`,
+      `${bruno.id};Bruno;573001110000`,
+      `${carla.id};Carla;573003330000`,
+    ].join('\n')
+    const result = readPhonesCsv(csv, [ana, bruno, carla])
+    expect(result.updates).toEqual([])
+    expect(result.rows[1]).toMatchObject({ status: 'repetido', note: 'Ese número ya es de Ana' })
+  })
+
+  it('un intercambio de números entre dos invitados sí se deja', () => {
+    const ana = guest({ name: 'Ana', phone: '573001110000' })
+    const bruno = guest({ name: 'Bruno', phone: '573002220000' })
+    const csv = ['Nombre;Teléfono', 'Ana;3002220000', 'Bruno;3001110000'].join('\n')
+    expect(readPhonesCsv(csv, [ana, bruno]).updates).toEqual([
+      { id: ana.id, phone: '573002220000' },
+      { id: bruno.id, phone: '573001110000' },
+    ])
+  })
+
+  it('el mismo invitado dos veces con su código: toma la primera y avisa de la otra', () => {
+    const ana = guest({ name: 'Ana' })
+    const csv = ['Código;Invitado;Teléfono', `${ana.id};Ana;3005556666`, `${ana.id};Ana;3007778888`].join('\n')
+    const result = readPhonesCsv(csv, [ana])
+    expect(result.updates).toEqual([{ id: ana.id, phone: '573005556666' }])
+    expect(result.rows[1]).toMatchObject({ status: 'repetido', note: 'Ese invitado viene dos veces en el archivo' })
+  })
+
+  it('un número guardado como se tecleó cuenta como el mismo, no como un cambio', () => {
+    const alberto = guest({ name: 'Alberto Cuan', phone: '300 6551912' })
+    const result = readPhonesCsv(['Nombre;Teléfono', 'Alberto Cuan;3006551912'].join('\n'), [alberto])
+    expect(result.rows[0].status).toBe('igual')
+    expect(result.updates).toEqual([])
+  })
+
   it('pero sí lo deja si en el mismo archivo el otro cambia de número', () => {
     const a = guest({ name: 'Ana', phone: '573001112222' })
     const b = guest({ name: 'Bruno' })

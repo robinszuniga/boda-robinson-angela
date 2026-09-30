@@ -117,7 +117,8 @@ export function matchContacts(contacts: Contact[], guests: Guest[]): PhoneImport
     const check = normalizePhone(contacto.phone)
     if (!check.digits) return { ...base, phone: null, status: 'invalido', note: check.error }
     const note = [deQuien, check.warning].filter(Boolean).join(' · ') || undefined
-    if (check.digits === guest.phone) return { ...base, phone: check.digits, status: 'igual', note }
+    // Un número guardado como se tecleó ("300 6551912") también cuenta como el mismo
+    if (check.digits === normalizePhone(guest.phone).digits) return { ...base, phone: check.digits, status: 'igual', note }
     return { ...base, phone: check.digits, status: guest.phone ? 'cambio' : 'nuevo', note }
   })
 

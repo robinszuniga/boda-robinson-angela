@@ -201,8 +201,10 @@ export default function GuestsPage() {
         <Stat icon={<UtensilsCrossed className="size-4" />} label="Con restricción alimentaria" value={dietaryCount} />
       </div>
 
-      <div className="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-[1fr_10.5rem_10.5rem_11rem_12rem]">
-        <div className="relative sm:col-span-2 xl:col-span-1">
+      {/* El buscador va en su propia fila: con la letra de 16px los filtros no
+          cabían en columnas fijas al lado ("Toda confirma…") */}
+      <div className="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="relative sm:col-span-2 xl:col-span-4">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
           <Input aria-label="Buscar invitado" placeholder="Buscar…" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>

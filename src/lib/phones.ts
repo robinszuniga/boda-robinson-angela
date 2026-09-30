@@ -36,10 +36,24 @@ export function normalizePhone(raw: string | null | undefined): PhoneCheck {
   return { digits, warning: hadPlus ? 'De otro país' : 'Revisa el indicativo' }
 }
 
+/**
+ * Para lo que se escribe a mano. Un celular sin indicativo tiene que traer sus
+ * 10 dígitos: con 8 o 9 ya pasaría como válido, pero sin el 57 y sin servir
+ * para WhatsApp. Con "+" delante se acepta tal cual (otro país).
+ */
+export function checkTypedPhone(raw: string): PhoneCheck {
+  const trimmed = raw.trim()
+  const digits = trimmed.replace(/\D/g, '').length
+  if (!trimmed.startsWith('+') && digits > 0 && digits < 10) return { digits: null, error: 'Número incompleto' }
+  return normalizePhone(trimmed)
+}
+
 /** Cómo se muestra en pantalla: 573001234567 → +57 300 123 4567 */
 export function formatPhone(phone: string | null | undefined): string {
-  const digits = (phone ?? '').replace(/\D/g, '')
-  if (!digits) return ''
+  const raw = (phone ?? '').replace(/\D/g, '')
+  if (!raw) return ''
+  // Los que quedaron guardados sin indicativo (300 123 4567) también son de Colombia
+  const digits = raw.length === 10 && raw.startsWith('3') ? `${COUNTRY_CODE}${raw}` : raw
   if (digits.length === 12 && digits.startsWith(COUNTRY_CODE)) {
     const n = digits.slice(2)
     return `+57 ${n.slice(0, 3)} ${n.slice(3, 6)} ${n.slice(6)}`

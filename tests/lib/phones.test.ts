@@ -1,5 +1,31 @@
 import { describe, expect, it } from 'vitest'
-import { formatPhone, normalizePhone } from '../../src/lib/phones'
+import { checkTypedPhone, formatPhone, normalizePhone } from '../../src/lib/phones'
+
+describe('checkTypedPhone', () => {
+  it('pide los 10 dígitos de un celular escrito a mano', () => {
+    expect(checkTypedPhone('300 655 19')).toEqual({ digits: null, error: 'Número incompleto' })
+    expect(checkTypedPhone('300 6551912').digits).toBe('573006551912')
+  })
+
+  it('con "+" acepta un número de otro país', () => {
+    expect(checkTypedPhone('+34 600 260 242').digits).toBe('34600260242')
+  })
+
+  it('lo que no tiene números no pasa', () => {
+    expect(checkTypedPhone('el de la finca').digits).toBeNull()
+  })
+})
+
+describe('formatPhone con números guardados como se tecleaban', () => {
+  it('muestra con +57 un celular guardado sin indicativo', () => {
+    expect(formatPhone('300 6551912')).toBe('+57 300 655 1912')
+    expect(formatPhone('3006551912')).toBe('+57 300 655 1912')
+  })
+
+  it('no toca los de otro país', () => {
+    expect(formatPhone('34600260242')).toBe('+34600260242')
+  })
+})
 
 describe('normalizePhone', () => {
   it('le pone el indicativo a los celulares colombianos de 10 dígitos', () => {
