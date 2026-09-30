@@ -103,6 +103,25 @@ describe('seguridad y casos raros del CSV', () => {
     expect(readPhonesCsv(csv, [a, b]).updates).toEqual([{ id: b.id, phone: '573001112222' }])
   })
 
+  it('no le pone a un invitado un número que ya está guardado en otro', () => {
+    // Raul Daza hijo ya tiene su número; el archivo trae ese mismo para el papá
+    const hijo = guest({ name: 'Raul Daza', phone: '573107187757' })
+    const papa = guest({ name: 'Sr Raul Daza' })
+    const result = readPhonesCsv(['Nombre;Teléfono', 'Sr Raul Daza;3107187757'].join('\n'), [hijo, papa])
+    expect(result.updates).toEqual([])
+    expect(result.rows[0]).toMatchObject({ status: 'repetido', note: 'Ese número ya es de Raul Daza' })
+  })
+
+  it('pero sí lo deja si en el mismo archivo el otro cambia de número', () => {
+    const a = guest({ name: 'Ana', phone: '573001112222' })
+    const b = guest({ name: 'Bruno' })
+    const csv = ['Nombre;Teléfono', 'Ana;3009998888', 'Bruno;3001112222'].join('\n')
+    expect(readPhonesCsv(csv, [a, b]).updates).toEqual([
+      { id: a.id, phone: '573009998888' },
+      { id: b.id, phone: '573001112222' },
+    ])
+  })
+
   it('no le deja el mismo número a dos invitados distintos', () => {
     const ana = guest({ name: 'Ana' })
     const bruno = guest({ name: 'Bruno' })
@@ -187,6 +206,13 @@ describe('applyManual', () => {
     expect(applyManual(sinAgenda, [marta], { [marta.id]: '+34 600 260 242' }).updates).toEqual([
       { id: marta.id, phone: '34600260242' },
     ])
+  })
+
+  it('al dictar a mano tampoco deja repetir un número que ya es de otro invitado', () => {
+    const hijo = guest({ name: 'Raul Daza', phone: '573107187757' })
+    const result = applyManual({ ...base, contacts: [] }, [marta, hijo], { [marta.id]: '310 718 7757' })
+    expect(result.updates).toEqual([])
+    expect(result.rows[0]).toMatchObject({ status: 'repetido', note: 'Ese número ya es de Raul Daza' })
   })
 
   it('ignora lo vacío y lo que no corresponde a un invitado', () => {

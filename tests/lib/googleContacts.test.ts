@@ -81,11 +81,21 @@ describe('matchContacts', () => {
     })
   })
 
-  it('pero si el invitado no tiene teléfono sí lo propone, diciendo con quién coincidió', () => {
+  it('tampoco lo guarda solo si el invitado no tiene teléfono: le mandaría el link a otra persona', () => {
     const juan = guest({ name: 'Juan Perez' })
     const result = matchContacts([{ name: 'Juan', phone: '3009998888' }], [juan])
-    expect(result.updates).toEqual([{ id: juan.id, phone: '573009998888' }])
-    expect(result.rows[0].note).toBe('Contacto: Juan')
+    expect(result.updates).toEqual([])
+    expect(result.rows[0]).toMatchObject({
+      status: 'repetido',
+      note: 'Solo coincide el nombre con Juan: revísalo a mano',
+    })
+  })
+
+  it('un invitado de un solo nombre tampoco se casa solo con un contacto que lo contenga', () => {
+    const amarilis = guest({ name: 'Amarilis' })
+    const result = matchContacts([{ name: 'Amarilis Gomez', phone: '3001112222' }], [amarilis])
+    expect(result.updates).toEqual([])
+    expect(result.counts.repetido).toBe(1)
   })
 
   it('no le deja el mismo número a dos invitados', () => {

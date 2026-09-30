@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -286,6 +286,7 @@ function RsvpForm({
   const asistenciaRef = useRef<HTMLDivElement>(null)
   const nombresRef = useRef<HTMLFieldSetElement>(null)
   const respuestaRef = useRef<HTMLHeadingElement>(null)
+  const nombresAyudaId = useId()
 
   const setMember = (id: string, patch: Partial<MemberState[string]>) =>
     setMembers((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }))
@@ -466,8 +467,8 @@ function RsvpForm({
                 label="¿Cuántos acompañantes vienen contigo?"
                 hint={`Tu invitación incluye hasta ${guest.plus_ones_allowed}.`}
               >
-                {(id) => (
-                  <Select id={id} value={plusOnes} onChange={(e) => setPlusOnes(Number(e.target.value))}>
+                {(id, extras) => (
+                  <Select id={id} {...extras} value={plusOnes} onChange={(e) => setPlusOnes(Number(e.target.value))}>
                     {Array.from({ length: guest.plus_ones_allowed + 1 }, (_, n) => (
                       <option key={n} value={n}>
                         {n === 0 ? 'Solo yo' : `${n} ${n === 1 ? 'acompañante' : 'acompañantes'}`}
@@ -485,6 +486,7 @@ function RsvpForm({
                       <Input
                         placeholder="Nombre y apellido"
                         maxLength={120}
+                        aria-describedby={nombresAyudaId}
                         aria-invalid={falta === 'nombres' && !names[i]?.trim() ? true : undefined}
                         value={names[i] ?? ''}
                         onChange={(e) => {
@@ -499,11 +501,13 @@ function RsvpForm({
                     </label>
                   ))}
                   {falta === 'nombres' ? (
-                    <p className="text-sm font-medium text-red-700" role="alert">
+                    <p id={nombresAyudaId} className="text-sm font-medium text-red-700" role="alert">
                       Falta el nombre de cada acompañante.
                     </p>
                   ) : (
-                    <p className="text-sm text-muted">Así sabemos a quién sentar contigo y cómo hacer su tarjeta.</p>
+                    <p id={nombresAyudaId} className="text-sm text-muted">
+                      Así sabemos a quién sentar contigo y cómo hacer su tarjeta.
+                    </p>
                   )}
                 </fieldset>
               )}
@@ -515,14 +519,23 @@ function RsvpForm({
               label={hasMembers ? '¿Tienes alguna restricción alimentaria?' : '¿Alguna restricción alimentaria?'}
               hint="Vegetariano, alergias, sin gluten…"
             >
-              {(id) => <Input id={id} maxLength={500} value={dietary} onChange={(e) => setDietary(e.target.value)} />}
+              {(id, extras) => (
+                <Input id={id} {...extras} maxLength={500} value={dietary} onChange={(e) => setDietary(e.target.value)} />
+              )}
             </Field>
           )}
 
           {attending && wedding.ask_song && (
             <Field label="¿Qué canción no puede faltar en la fiesta?" hint="Opcional. Se la pasamos al DJ.">
-              {(id) => (
-                <Input id={id} maxLength={200} placeholder="Canción y artista" value={song} onChange={(e) => setSong(e.target.value)} />
+              {(id, extras) => (
+                <Input
+                  id={id}
+                  {...extras}
+                  maxLength={200}
+                  placeholder="Canción y artista"
+                  value={song}
+                  onChange={(e) => setSong(e.target.value)}
+                />
               )}
             </Field>
           )}
@@ -540,7 +553,9 @@ function RsvpForm({
           )}
 
           <Field label="Un mensaje para los novios (opcional)">
-            {(id) => <Textarea id={id} maxLength={1000} value={message} onChange={(e) => setMessage(e.target.value)} />}
+            {(id, extras) => (
+              <Textarea id={id} {...extras} maxLength={1000} value={message} onChange={(e) => setMessage(e.target.value)} />
+            )}
           </Field>
 
           <Button type="submit" disabled={submit.isPending} className="h-12 text-base">

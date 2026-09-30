@@ -97,9 +97,10 @@ export function matchContacts(contacts: Contact[], guests: Guest[]): PhoneImport
 
     const contacto = found[0]
     // Un contacto guardado solo con el nombre de pila ("Juan") coincide con
-    // cualquier invitado que se llame así. Si el invitado ya tiene teléfono,
-    // no se pisa por una coincidencia tan floja: se manda a revisar a mano.
-    if (best === 1 && guest.phone) {
+    // cualquier invitado que se llame así. Con una coincidencia tan floja se
+    // le mandaría el link privado a otra persona, así que nunca se guarda sola:
+    // se manda a revisar y él lo asigna a mano si de verdad es.
+    if (best === 1) {
       return {
         guestId: guest.id,
         name: guest.name,
@@ -120,7 +121,7 @@ export function matchContacts(contacts: Contact[], guests: Guest[]): PhoneImport
     return { ...base, phone: check.digits, status: guest.phone ? 'cambio' : 'nuevo', note }
   })
 
-  return buildImport('google', rows, contacts)
+  return buildImport('google', rows, contacts, guests)
 }
 
 /** Lee el archivo, sea la planilla de la app o la exportación de Google */

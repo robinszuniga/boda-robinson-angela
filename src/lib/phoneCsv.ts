@@ -86,23 +86,44 @@ export const toUpdates = (rows: PhoneRow[]) =>
     .filter((r) => r.guestId && r.phone && (r.status === 'nuevo' || r.status === 'cambio'))
     .map((r) => ({ id: r.guestId!, phone: r.phone! }))
 
+const guarda = (r: PhoneRow) => !!r.guestId && !!r.phone && (r.status === 'nuevo' || r.status === 'cambio')
+
 /**
- * Cierra el resultado: antes de contar, aparta los números que le quedarían a
- * dos invitados distintos. Si no, a ese teléfono le llegan dos invitaciones
- * con links distintos y el otro invitado se queda sin poder confirmar.
+ * Cierra el resultado: antes de contar, aparta los números que terminarían en
+ * dos invitados distintos, contando también los que ya estaban guardados (el
+ * del hijo no puede quedarle también al papá). Si no, a ese teléfono le llegan
+ * dos invitaciones con links distintos y el otro se queda sin poder confirmar.
  */
-export function buildImport(kind: PhoneImport['kind'], rows: PhoneRow[], contacts: Contact[]): PhoneImport {
-  const veces = new Map<string, number>()
-  for (const r of rows) if (r.phone) veces.set(r.phone, (veces.get(r.phone) ?? 0) + 1)
-  const final = rows.map((r) =>
-    r.phone && (veces.get(r.phone) ?? 0) > 1 && (r.status === 'nuevo' || r.status === 'cambio')
-      ? { ...r, phone: null, status: 'repetido' as const, note: 'Ese número le quedaría a dos invitados' }
-      : r,
-  )
+export function buildImport(
+  kind: PhoneImport['kind'],
+  rows: PhoneRow[],
+  contacts: Contact[],
+  guests: Guest[],
+): PhoneImport {
+  // El teléfono que tendría cada invitado si se guarda todo
+  const final = new Map<string, string>()
+  for (const g of guests) if (g.phone) final.set(g.id, g.phone)
+  for (const r of rows) if (guarda(r)) final.set(r.guestId!, r.phone!)
+  const dueños = new Map<string, number>()
+  for (const phone of final.values()) dueños.set(phone, (dueños.get(phone) ?? 0) + 1)
+  const guardadoEn = new Map<string, Guest>()
+  for (const g of guests) if (g.phone && !guardadoEn.has(g.phone)) guardadoEn.set(g.phone, g)
+
+  const out = rows.map((r): PhoneRow => {
+    if (!guarda(r) || (dueños.get(r.phone!) ?? 0) < 2) return r
+    const otro = guardadoEn.get(r.phone!)
+    const deOtro = otro && otro.id !== r.guestId && final.get(otro.id) === r.phone
+    return {
+      ...r,
+      phone: null,
+      status: 'repetido',
+      note: deOtro ? `Ese número ya es de ${otro.name}` : 'Ese número le quedaría a dos invitados',
+    }
+  })
 
   const counts = emptyCounts()
-  for (const r of final) counts[r.status]++
-  return { kind, rows: final, contacts, updates: toUpdates(final), counts }
+  for (const r of out) counts[r.status]++
+  return { kind, rows: out, contacts, updates: toUpdates(out), counts }
 }
 
 export const emptyCounts = (): Record<PhoneRowStatus, number> => ({
@@ -183,7 +204,7 @@ export function readPhonesCsv(text: string, guests: Guest[]): PhoneImport {
     }
   })
 
-  return buildImport('planilla', rows, [])
+  return buildImport('planilla', rows, [], guests)
 }
 
 /**
@@ -238,5 +259,5 @@ export function applyManual(base: PhoneImport, guests: Guest[], manual: Record<s
   const yaEstan = new Set(base.rows.map((r) => r.guestId))
   for (const [guestId, row] of hechos) if (!yaEstan.has(guestId)) rows.push(row)
 
-  return buildImport(base.kind, rows, base.contacts)
+  return buildImport(base.kind, rows, base.contacts, guests)
 }

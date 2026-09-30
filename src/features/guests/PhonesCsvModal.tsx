@@ -246,7 +246,7 @@ export function PhonesCsvModal({ guests, onClose }: { guests: Guest[]; onClose: 
                 <span className="text-red-700">{result.counts.desconocido} no están en la lista</span>
               )}
               {result.counts.repetido > 0 && (
-                <span className="text-amber-700">{result.counts.repetido} con varios parecidos</span>
+                <span className="text-amber-700">{result.counts.repetido} para revisar a mano</span>
               )}
             </div>
             {issues.length > 0 && (

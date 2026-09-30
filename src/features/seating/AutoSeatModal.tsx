@@ -33,6 +33,8 @@ export function AutoSeatModal({
   const [saving, setSaving] = useState(false)
   const plan = planSeatingByGroup(tables, guests, links, { reassignAll, members })
   const used = plan.tables.filter((t) => t.guests.length > 0)
+  const sacados = plan.moves.filter((m) => m.tableId === null).length
+  const sentados = plan.moves.length - sacados
 
   const apply = async () => {
     const before = plan.moves.map((m) => ({ id: m.guest.id, values: { table_id: m.guest.table_id } }))
@@ -83,7 +85,14 @@ export function AutoSeatModal({
         <p className="text-sm">
           {plan.moves.length === 0
             ? 'No hay nada que mover: todos están en una mesa de su grupo.'
-            : `${plural(plan.moves.length, 'invitado cambia', 'invitados cambian')} de mesa · ${plural(used.length, 'mesa usada', 'mesas usadas')} de ${tables.length}`}
+            : [
+                sentados > 0 && `${plural(sentados, 'invitado cambia', 'invitados cambian')} de mesa`,
+                // Los que no cupieron salen de su mesa: no es "cambiar de mesa"
+                sacados > 0 && `${plural(sacados, 'sale', 'salen')} de su mesa porque no cabe`,
+                `${plural(used.length, 'mesa usada', 'mesas usadas')} de ${tables.length}`,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
         </p>
 
         {plan.unseated.length > 0 && (
