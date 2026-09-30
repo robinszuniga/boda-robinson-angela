@@ -13,7 +13,10 @@ interface ModalProps {
   size?: 'md' | 'lg'
 }
 
-/** Diálogo modal nativo (<dialog>): foco atrapado, Esc para cerrar y accesible */
+/**
+ * Diálogo modal nativo (<dialog>): foco atrapado, Esc para cerrar y accesible.
+ * A propósito no se cierra al tocar por fuera: se perdía lo que se estaba llenando.
+ */
 export function Modal({ open, onClose, title, description, children, footer, size = 'md' }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null)
   const titleId = useId()
@@ -36,9 +39,6 @@ export function Modal({ open, onClose, title, description, children, footer, siz
       onCancel={(e) => {
         e.preventDefault()
         onClose()
-      }}
-      onClick={(e) => {
-        if (e.target === ref.current) onClose()
       }}
       aria-labelledby={titleId}
       className={cn(

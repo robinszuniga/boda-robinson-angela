@@ -1,5 +1,5 @@
 /** Campos que la app reemplaza dentro de los mensajes */
-export const MESSAGE_FIELDS = ['nombre', 'novios', 'fecha', 'lugar', 'link', 'limite'] as const
+export const MESSAGE_FIELDS = ['nombre', 'novios', 'fecha', 'lugar', 'link', 'limite', 'cupos'] as const
 
 export type MessageField = (typeof MESSAGE_FIELDS)[number]
 export type MessageValues = Record<MessageField, string>
@@ -11,11 +11,18 @@ export const FIELD_HELP: Record<MessageField, string> = {
   lugar: 'el lugar',
   link: 'el link de confirmación de ese invitado',
   limite: 'la fecha límite para confirmar',
+  cupos: 'para cuántas personas es esa invitación',
+}
+
+/** "1 persona" o "3 personas", contando al invitado y a sus acompañantes */
+export function cuposText(allowed: number): string {
+  const total = 1 + Math.max(0, allowed)
+  return total === 1 ? '1 persona' : `${total} personas`
 }
 
 // La fecha ya termina en "p. m.", por eso no lleva punto después
 export const DEFAULT_INVITATION =
-  '¡Hola, {nombre}!\n{novios} queremos invitarte a nuestra boda el {fecha}\nConfirma tu asistencia aquí: {link}'
+  '¡Hola, {nombre}!\n{novios} queremos invitarte a nuestra boda el {fecha}\nTu invitación es para {cupos}.\nConfirma tu asistencia aquí: {link}'
 
 export const DEFAULT_REMINDER =
   '¡Hola, {nombre}! Te escribimos para recordarte que nos cuentes si nos acompañas en nuestra boda. Es solo un clic aquí: {link}'

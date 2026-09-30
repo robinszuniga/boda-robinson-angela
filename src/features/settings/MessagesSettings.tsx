@@ -17,10 +17,11 @@ import { Field, Textarea } from '../../components/ui/Field'
 import type { Guest, WeddingSettings } from '../../types/database'
 import { messageValues } from '../guests/rsvpLinks'
 
-const EXAMPLE: Pick<Guest, 'name' | 'rsvp_token' | 'short_url'> = {
+const EXAMPLE: Pick<Guest, 'name' | 'rsvp_token' | 'short_url' | 'plus_ones_allowed'> = {
   name: 'Tía Marta',
   rsvp_token: 'ejemplo1234567890abcd',
   short_url: null,
+  plus_ones_allowed: 1,
 }
 
 /** Textos de la invitación y del recordatorio que se envían por WhatsApp */

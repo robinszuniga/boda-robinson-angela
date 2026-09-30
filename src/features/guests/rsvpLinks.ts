@@ -3,6 +3,7 @@ import { whatsappLink } from '../../lib/contact'
 import { appUrl } from '../../lib/appUrl'
 import { formatDate, formatWeddingDate } from '../../lib/format'
 import {
+  cuposText,
   DEFAULT_INVITATION,
   DEFAULT_REMINDER,
   renderMessage,
@@ -18,7 +19,7 @@ export function rsvpUrl(guest: GuestLink): string {
   return guest.short_url?.trim() || appUrl(`rsvp/${guest.rsvp_token}`)
 }
 
-type GuestForMessage = GuestLink & Pick<Guest, 'name'>
+type GuestForMessage = GuestLink & Pick<Guest, 'name' | 'plus_ones_allowed'>
 
 export function messageValues(guest: GuestForMessage, settings?: WeddingSettings): MessageValues {
   return {
@@ -29,6 +30,7 @@ export function messageValues(guest: GuestForMessage, settings?: WeddingSettings
     lugar: settings?.venue_name ?? '',
     link: rsvpUrl(guest),
     limite: settings?.rsvp_deadline ? formatDate(settings.rsvp_deadline, "d 'de' MMMM") : '',
+    cupos: cuposText(guest.plus_ones_allowed),
   }
 }
 

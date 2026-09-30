@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  cuposText,
   DEFAULT_INVITATION,
   DEFAULT_REMINDER,
   renderMessage,
@@ -14,12 +15,13 @@ const values: MessageValues = {
   lugar: 'Casa Sotillo',
   link: 'https://ejemplo.co/rsvp/abc',
   limite: '8 de abril',
+  cupos: '2 personas',
 }
 
 describe('renderMessage', () => {
   it('reemplaza los campos de la plantilla por defecto', () => {
     expect(renderMessage(DEFAULT_INVITATION, values)).toBe(
-      '¡Hola, Tía Marta!\nRobinson y Ángela queremos invitarte a nuestra boda el sábado 8 de mayo de 2027 a las 5:00 p. m.\nConfirma tu asistencia aquí: https://ejemplo.co/rsvp/abc',
+      '¡Hola, Tía Marta!\nRobinson y Ángela queremos invitarte a nuestra boda el sábado 8 de mayo de 2027 a las 5:00 p. m.\nTu invitación es para 2 personas.\nConfirma tu asistencia aquí: https://ejemplo.co/rsvp/abc',
     )
     expect(renderMessage(DEFAULT_REMINDER, values)).toContain('¡Hola, Tía Marta!')
   })
@@ -32,6 +34,12 @@ describe('renderMessage', () => {
     expect(renderMessage('Hola {nombrre}', values)).toBe('Hola {nombrre}')
     expect(unknownFields('Hola {nombrre} y {lugar}')).toEqual(['nombrre'])
     expect(unknownFields(DEFAULT_INVITATION)).toEqual([])
+  })
+
+  it('los cupos cuentan al invitado y a sus acompañantes', () => {
+    expect(cuposText(0)).toBe('1 persona')
+    expect(cuposText(1)).toBe('2 personas')
+    expect(cuposText(4)).toBe('5 personas')
   })
 
   it('si un campo está vacío no deja espacios de sobra', () => {
