@@ -18,7 +18,8 @@ export interface PlannedTable {
 
 export interface SeatingPlan {
   /** Invitados que cambian de mesa */
-  moves: { guest: Guest; tableId: string }[]
+  /** tableId null = hay que sacarlo de su mesa porque no cupo en ninguna */
+  moves: { guest: Guest; tableId: string | null }[]
   tables: PlannedTable[]
   /** No cupieron en ninguna mesa de su grupo */
   unseated: Guest[]
@@ -167,9 +168,12 @@ export function planSeatingByGroup(
     }
   }
 
-  const moves = [...planned.values()].flatMap((t) =>
+  const moves: SeatingPlan['moves'] = [...planned.values()].flatMap((t) =>
     t.guests.filter((g) => g.table_id !== t.table.id).map((guest) => ({ guest, tableId: t.table.id })),
   )
+  // Al que se reporta sin mesa hay que sacarlo de verdad: si no, el plan dice
+  // que quedó por fuera pero en la base sigue sentado y la mesa queda en sobrecupo
+  for (const guest of unseated) if (guest.table_id) moves.push({ guest, tableId: null })
 
   return { moves, tables: [...planned.values()], unseated }
 }

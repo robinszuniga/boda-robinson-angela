@@ -86,6 +86,25 @@ export const toUpdates = (rows: PhoneRow[]) =>
     .filter((r) => r.guestId && r.phone && (r.status === 'nuevo' || r.status === 'cambio'))
     .map((r) => ({ id: r.guestId!, phone: r.phone! }))
 
+/**
+ * Cierra el resultado: antes de contar, aparta los números que le quedarían a
+ * dos invitados distintos. Si no, a ese teléfono le llegan dos invitaciones
+ * con links distintos y el otro invitado se queda sin poder confirmar.
+ */
+export function buildImport(kind: PhoneImport['kind'], rows: PhoneRow[], contacts: Contact[]): PhoneImport {
+  const veces = new Map<string, number>()
+  for (const r of rows) if (r.phone) veces.set(r.phone, (veces.get(r.phone) ?? 0) + 1)
+  const final = rows.map((r) =>
+    r.phone && (veces.get(r.phone) ?? 0) > 1 && (r.status === 'nuevo' || r.status === 'cambio')
+      ? { ...r, phone: null, status: 'repetido' as const, note: 'Ese número le quedaría a dos invitados' }
+      : r,
+  )
+
+  const counts = emptyCounts()
+  for (const r of final) counts[r.status]++
+  return { kind, rows: final, contacts, updates: toUpdates(final), counts }
+}
+
 export const emptyCounts = (): Record<PhoneRowStatus, number> => ({
   nuevo: 0,
   cambio: 0,
@@ -122,9 +141,16 @@ export function readPhonesCsv(text: string, guests: Guest[]): PhoneImport {
 
   const byId = new Map(guests.map((g) => [g.id, g]))
   const byName = new Map<string, Guest>()
-  for (const g of guests) if (!byName.has(nameKey(g.name))) byName.set(nameKey(g.name), g)
+  // Dos invitados con el mismo nombre (Raul Daza padre e hijo): sin el código
+  // no hay forma de saber de cuál es el teléfono, así que no se adivina
+  const homonimos = new Set<string>()
+  for (const g of guests) {
+    const key = nameKey(g.name)
+    if (byName.has(key)) homonimos.add(key)
+    else byName.set(key, g)
+  }
 
-  // Si dos filas caen en el mismo invitado (nombres repetidos sin código), no se adivina
+  // Si dos filas caen en el mismo invitado, tampoco se adivina
   const seen = new Set<string>()
   const rows = body.map((cells): PhoneRow => {
     const raw = (cells[phoneAt] ?? '').trim()
@@ -132,7 +158,7 @@ export function readPhonesCsv(text: string, guests: Guest[]): PhoneImport {
     const byIdMatch = idCol >= 0 ? byId.get((cells[idCol] ?? '').trim()) : undefined
     const guest = byIdMatch ?? byName.get(nameKey(fileName))
     if (!guest) return { guestId: null, name: fileName || '(sin nombre)', raw, phone: null, status: 'desconocido' }
-    if (!byIdMatch && seen.has(guest.id)) {
+    if (!byIdMatch && (homonimos.has(nameKey(fileName)) || seen.has(guest.id))) {
       return {
         guestId: null,
         name: fileName,
@@ -157,10 +183,7 @@ export function readPhonesCsv(text: string, guests: Guest[]): PhoneImport {
     }
   })
 
-  const counts = emptyCounts()
-  for (const r of rows) counts[r.status]++
-
-  return { kind: 'planilla', rows, contacts: [], updates: toUpdates(rows), counts }
+  return buildImport('planilla', rows, [])
 }
 
 /**
@@ -188,10 +211,18 @@ export function applyManual(base: PhoneImport, guests: Guest[], manual: Record<s
     const raw = contact ? contact.phone : written
     const check = normalizePhone(raw)
     const row = { guestId, name: guest.name, raw }
-    if (!check.digits) {
+    // Mientras escribe un celular, a los 8 dígitos ya pasaría como válido pero
+    // sin indicativo, y así no sirve para WhatsApp. Se espera a que lo termine.
+    const digitos = raw.replace(/\D/g, '').length
+    const aMedias = !contact && !written.startsWith('+') && digitos > 0 && digitos < 10
+    if (!check.digits || aMedias) {
       // Si está escribiendo el apodo de un contacto, no es un error: le falta elegirlo
       const buscando = base.contacts.length > 0 && !/\d/.test(written)
-      const note = buscando ? 'Elige un contacto de la lista' : (check.error ?? 'No parece un número')
+      const note = buscando
+        ? 'Elige un contacto de la lista'
+        : aMedias
+          ? 'Número incompleto'
+          : (check.error ?? 'No parece un número')
       hechos.set(guestId, { ...row, phone: null, status: 'invalido', note })
       continue
     }
@@ -207,7 +238,5 @@ export function applyManual(base: PhoneImport, guests: Guest[], manual: Record<s
   const yaEstan = new Set(base.rows.map((r) => r.guestId))
   for (const [guestId, row] of hechos) if (!yaEstan.has(guestId)) rows.push(row)
 
-  const counts = emptyCounts()
-  for (const r of rows) counts[r.status]++
-  return { ...base, rows, counts, updates: toUpdates(rows) }
+  return buildImport(base.kind, rows, base.contacts)
 }

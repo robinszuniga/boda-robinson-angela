@@ -78,14 +78,38 @@ describe('seguridad y casos raros del CSV', () => {
     expect(fila).toContain("'=HYPERLINK")
   })
 
-  it('marca las filas con nombre repetido en vez de adivinar', () => {
+  it('con dos invitados del mismo nombre no le adivina el teléfono a ninguno', () => {
     const a = guest({ name: 'Raul Daza' })
     const b = guest({ name: 'Raul Daza' })
     const csv = ['Nombre;Teléfono', 'Raul Daza;3001112222', 'Raul Daza;3003334444'].join('\n')
     const result = readPhonesCsv(csv, [a, b])
-    expect(result.updates).toEqual([{ id: a.id, phone: '573001112222' }])
+    expect(result.updates).toEqual([])
+    expect(result.counts.repetido).toBe(2)
+    expect(result.rows[0]).toMatchObject({ status: 'repetido', note: 'Nombre repetido: usa la columna Código' })
+  })
+
+  it('tampoco cuando el archivo trae una sola fila con ese nombre', () => {
+    const a = guest({ name: 'Raul Daza' })
+    const b = guest({ name: 'Raul Daza' })
+    const result = readPhonesCsv(['Nombre;Teléfono', 'Raul Daza;3001112222'].join('\n'), [a, b])
+    expect(result.updates).toEqual([])
     expect(result.counts.repetido).toBe(1)
-    expect(result.rows[1]).toMatchObject({ status: 'repetido', note: 'Nombre repetido: usa la columna Código' })
+  })
+
+  it('con el código sí sabe de cuál de los dos es', () => {
+    const a = guest({ name: 'Raul Daza' })
+    const b = guest({ name: 'Raul Daza' })
+    const csv = ['Código;Invitado;Teléfono', `${b.id};Raul Daza;3001112222`].join('\n')
+    expect(readPhonesCsv(csv, [a, b]).updates).toEqual([{ id: b.id, phone: '573001112222' }])
+  })
+
+  it('no le deja el mismo número a dos invitados distintos', () => {
+    const ana = guest({ name: 'Ana' })
+    const bruno = guest({ name: 'Bruno' })
+    const csv = ['Nombre;Teléfono', 'Ana;3001112222', 'Bruno;3001112222'].join('\n')
+    const result = readPhonesCsv(csv, [ana, bruno])
+    expect(result.updates).toEqual([])
+    expect(result.rows[0]).toMatchObject({ status: 'repetido', note: 'Ese número le quedaría a dos invitados' })
   })
 })
 
@@ -146,6 +170,23 @@ describe('applyManual', () => {
       { id: juan.id, phone: '573005554444' },
     ])
     expect(result.rows).toHaveLength(2)
+  })
+
+  it('espera a que el número esté completo antes de darlo por bueno', () => {
+    const sinAgenda = { ...base, contacts: [] }
+    // Mientras teclea 3001234567: con 8 o 9 dígitos pasaría sin el 57 y no sirve
+    expect(applyManual(sinAgenda, [marta], { [marta.id]: '30012345' }).updates).toEqual([])
+    expect(applyManual(sinAgenda, [marta], { [marta.id]: '300123456' }).rows[0]).toMatchObject({
+      status: 'invalido',
+      note: 'Número incompleto',
+    })
+    expect(applyManual(sinAgenda, [marta], { [marta.id]: '3001234567' }).updates).toEqual([
+      { id: marta.id, phone: '573001234567' },
+    ])
+    // Con indicativo escrito a mano sí se acepta un número de otro país
+    expect(applyManual(sinAgenda, [marta], { [marta.id]: '+34 600 260 242' }).updates).toEqual([
+      { id: marta.id, phone: '34600260242' },
+    ])
   })
 
   it('ignora lo vacío y lo que no corresponde a un invitado', () => {

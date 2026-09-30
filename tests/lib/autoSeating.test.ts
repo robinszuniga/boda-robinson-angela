@@ -139,6 +139,17 @@ describe('planSeatingByGroup', () => {
     expect(plan.tables.find((t) => t.table.number === 1)?.locked).toBe(true)
   })
 
+  it('al que reporta sin mesa lo saca de la suya, para que la mesa no quede en sobrecupo', () => {
+    const t1 = table({ number: 1, capacity: 4 })
+    const guests = ['A', 'B', 'C', 'D', 'E'].map((name) =>
+      guest({ name, guest_group: 'amigos', table_id: t1.id }),
+    )
+    const plan = planSeatingByGroup([t1], guests, [], { reassignAll: true })
+    expect(plan.unseated.map((g) => g.name)).toEqual(['E'])
+    // El único cambio es sacar a E: los otros cuatro ya estaban en esa mesa
+    expect(plan.moves).toEqual([{ guest: guests[4], tableId: null }])
+  })
+
   it('ignora a los que no asisten y reporta a quien no cupo', () => {
     const t1 = table({ number: 1, capacity: 2 })
     const guests = [

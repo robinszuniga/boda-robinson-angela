@@ -1,15 +1,6 @@
 import type { Guest } from '../types/database'
 import { normalizePhone } from './phones'
-import {
-  emptyCounts,
-  nameKey,
-  parseCsv,
-  readPhonesCsv,
-  toUpdates,
-  type Contact,
-  type PhoneImport,
-  type PhoneRow,
-} from './phoneCsv'
+import { buildImport, nameKey, parseCsv, readPhonesCsv, type Contact, type PhoneImport, type PhoneRow } from './phoneCsv'
 
 export type { Contact }
 
@@ -105,6 +96,20 @@ export function matchContacts(contacts: Contact[], guests: Guest[]): PhoneImport
     }
 
     const contacto = found[0]
+    // Un contacto guardado solo con el nombre de pila ("Juan") coincide con
+    // cualquier invitado que se llame así. Si el invitado ya tiene teléfono,
+    // no se pisa por una coincidencia tan floja: se manda a revisar a mano.
+    if (best === 1 && guest.phone) {
+      return {
+        guestId: guest.id,
+        name: guest.name,
+        raw: contacto.phone,
+        phone: null,
+        status: 'repetido',
+        note: `Solo coincide el nombre con ${contacto.name}: revísalo a mano`,
+      }
+    }
+
     const base = { guestId: guest.id, name: guest.name, raw: contacto.phone }
     // Si el contacto no se llama igual, se dice con quién coincidió para que él revise
     const deQuien = best < 3 ? `Contacto: ${contacto.name}` : undefined
@@ -115,10 +120,7 @@ export function matchContacts(contacts: Contact[], guests: Guest[]): PhoneImport
     return { ...base, phone: check.digits, status: guest.phone ? 'cambio' : 'nuevo', note }
   })
 
-  const counts = emptyCounts()
-  for (const r of rows) counts[r.status]++
-
-  return { kind: 'google', rows, contacts, updates: toUpdates(rows), counts }
+  return buildImport('google', rows, contacts)
 }
 
 /** Lee el archivo, sea la planilla de la app o la exportación de Google */

@@ -70,6 +70,32 @@ describe('matchContacts', () => {
     expect(result.updates).toEqual([{ id: andres.id, phone: '573001112222' }])
   })
 
+  it('un contacto guardado solo con el nombre de pila no pisa un teléfono que ya estaba bueno', () => {
+    // "Juan" puede ser el plomero, no el invitado Juan Perez
+    const juan = guest({ name: 'Juan Perez', phone: '573001112222' })
+    const result = matchContacts([{ name: 'Juan', phone: '3009998888' }], [juan])
+    expect(result.updates).toEqual([])
+    expect(result.rows[0]).toMatchObject({
+      status: 'repetido',
+      note: 'Solo coincide el nombre con Juan: revísalo a mano',
+    })
+  })
+
+  it('pero si el invitado no tiene teléfono sí lo propone, diciendo con quién coincidió', () => {
+    const juan = guest({ name: 'Juan Perez' })
+    const result = matchContacts([{ name: 'Juan', phone: '3009998888' }], [juan])
+    expect(result.updates).toEqual([{ id: juan.id, phone: '573009998888' }])
+    expect(result.rows[0].note).toBe('Contacto: Juan')
+  })
+
+  it('no le deja el mismo número a dos invitados', () => {
+    const maria = guest({ name: 'Maria Gomez' })
+    const otra = guest({ name: 'Maria Gomez Ruiz' })
+    const result = matchContacts([{ name: 'Maria Gomez', phone: '3001112222' }], [maria, otra])
+    expect(result.updates).toEqual([])
+    expect(result.rows.map((r) => r.status)).toEqual(['repetido', 'repetido'])
+  })
+
   it('no adivina cuando hay varios contactos parecidos con números distintos', () => {
     const amarilis = guest({ name: 'Amarilis' })
     const result = matchContacts(

@@ -19,7 +19,8 @@ export const paymentsApi = createTableApi('payments', {
 
 export const seatingTablesApi = createTableApi('seating_tables', {
   order: [{ column: 'number' }],
-  invalidates: ['guests'],
+  // Al borrar una mesa, los acompañantes sentados aparte quedan sin mesa (0014)
+  invalidates: ['guests', 'guest_members'],
 })
 
 export const guestsApi = createTableApi('guests', {

@@ -22,7 +22,8 @@ export function DeleteTablesModal({ tables, onClose }: { tables: TableOccupancy[
   const all = selected.size === tables.length && tables.length > 0
   const seated = tables
     .filter((t) => selected.has(t.table.id))
-    .reduce((sum, t) => sum + t.guests.length, 0)
+    // Cuentan también los acompañantes que están sentados aparte en esa mesa
+    .reduce((sum, t) => sum + t.guests.length + t.apart.length, 0)
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -55,6 +56,8 @@ export function DeleteTablesModal({ tables, onClose }: { tables: TableOccupancy[
     await Promise.all([
       qc.invalidateQueries({ queryKey: tableKey('seating_tables') }),
       qc.invalidateQueries({ queryKey: tableKey('guests') }),
+      // Los acompañantes que estaban sentados aparte también se quedan sin mesa
+      qc.invalidateQueries({ queryKey: tableKey('guest_members') }),
     ])
     if (!done) return
     toast.success(`${plural(ids.length, 'mesa borrada', 'mesas borradas')}`)
