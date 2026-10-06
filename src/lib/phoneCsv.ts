@@ -199,7 +199,10 @@ export function readPhonesCsv(text: string, guests: Guest[]): PhoneImport {
   // Si dos filas caen en el mismo invitado, tampoco se adivina
   const seen = new Set<string>()
   const rows = body.map((cells): PhoneRow => {
-    const raw = (cells[phoneAt] ?? '').trim()
+    // La planilla le pone un apóstrofo a lo que empieza por "+" para que Excel
+    // no lo tome como fórmula. Al volver hay que quitarlo, o el "+" queda
+    // escondido y un número de otro país se guardaría como colombiano.
+    const raw = (cells[phoneAt] ?? '').trim().replace(/^'/, '')
     const fileName = (cells[nameAt] ?? '').trim()
     const byIdMatch = idCol >= 0 ? byId.get((cells[idCol] ?? '').trim()) : undefined
     const guest = byIdMatch ?? byName.get(nameKey(fileName))

@@ -78,6 +78,24 @@ describe('seguridad y casos raros del CSV', () => {
     expect(fila).toContain("'=HYPERLINK")
   })
 
+  it('un extranjero de 10 dígitos va y vuelve por la planilla sin volverse colombiano', () => {
+    const belga = guest({ name: 'Primo de Bélgica', phone: '+3221234567' })
+    const csv = phonesCsv([belga])
+    // La planilla lo protege con un apóstrofo para que Excel no lo tome como fórmula
+    expect(csv).toContain("'+3221234567")
+    const result = readPhonesCsv(csv, [belga])
+    expect(result.rows[0].status).toBe('igual')
+    expect(result.updates).toEqual([])
+  })
+
+  it('reconoce repetido un número extranjero aunque venga escrito con espacios', () => {
+    const belga = guest({ name: 'Primo de Bélgica', phone: '+3221234567' })
+    const otro = guest({ name: 'Otro' })
+    const result = readPhonesCsv(['Nombre;Teléfono', 'Otro;+32 2 123 45 67'].join('\n'), [belga, otro])
+    expect(result.updates).toEqual([])
+    expect(result.rows[0]).toMatchObject({ status: 'repetido', note: 'Ese número ya es de Primo de Bélgica' })
+  })
+
   it('con dos invitados del mismo nombre no le adivina el teléfono a ninguno', () => {
     const a = guest({ name: 'Raul Daza' })
     const b = guest({ name: 'Raul Daza' })

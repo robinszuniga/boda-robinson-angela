@@ -1,9 +1,13 @@
-/** Normaliza un teléfono colombiano para wa.me: 300 123 4567 → 573001234567 */
+/**
+ * Normaliza un teléfono para wa.me: 300 123 4567 → 573001234567.
+ * Si viene con "+" ya trae su indicativo, sea el que sea, y no se le pone el 57:
+ * +32 2 123 45 67 también tiene 10 dígitos y empieza por 3, pero es de Bélgica.
+ */
 export function whatsappNumber(phone: string | null | undefined): string | null {
   if (!phone) return null
   const digits = phone.replace(/\D/g, '')
   if (!digits) return null
-  if (digits.length === 10 && digits.startsWith('3')) return `57${digits}`
+  if (!phone.trim().startsWith('+') && digits.length === 10 && digits.startsWith('3')) return `57${digits}`
   return digits
 }
 

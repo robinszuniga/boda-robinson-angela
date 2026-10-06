@@ -1,8 +1,19 @@
 /** Indicativo de Colombia: los números se guardan y se envían con él */
 export const COUNTRY_CODE = '57'
 
+/**
+ * Un número sin "+" y de este largo se toma como local de Colombia y se le pone
+ * el 57. Por eso un extranjero que mida lo mismo (+32 2 123 45 67) tiene que
+ * conservar su "+": sin él sería indistinguible y le llegaría el link a otro.
+ */
+const LOCAL_LENGTH = 10
+
 export interface PhoneCheck {
-  /** Solo dígitos, con indicativo, listo para WhatsApp. null si no sirve */
+  /**
+   * Listo para guardar: solo dígitos y con indicativo. null si no sirve.
+   * Lleva "+" delante únicamente cuando es de otro país y sin él tendría 10
+   * dígitos, que es la forma de un número local colombiano (ver LOCAL_LENGTH).
+   */
   digits: string | null
   /** Se puede usar, pero conviene revisarlo */
   warning?: string
@@ -24,16 +35,24 @@ export function normalizePhone(raw: string | null | undefined): PhoneCheck {
   if (digits.length < 8) return { digits: null, error: 'Número incompleto' }
   if (digits.length > 15) return { digits: null, error: 'Número demasiado largo' }
 
-  if (!hadPlus && digits.length === 10) {
+  if (!hadPlus && digits.length === LOCAL_LENGTH) {
     return digits.startsWith('3')
       ? { digits: `${COUNTRY_CODE}${digits}` }
       : { digits: `${COUNTRY_CODE}${digits}`, warning: 'No parece celular' }
   }
+  // Con +57 escrito el número tiene que venir entero. Si no, "+57 300123"
+  // pasaba como si fuera de otro país y se guardaba un número que no existe.
+  if (hadPlus && digits.startsWith(COUNTRY_CODE) && digits.length !== 12) {
+    return { digits: null, error: digits.length < 12 ? 'Número incompleto' : 'Número demasiado largo' }
+  }
   if (digits.length === 12 && digits.startsWith(COUNTRY_CODE)) {
     return digits[2] === '3' ? { digits } : { digits, warning: 'No parece celular' }
   }
-  // Otro país u otra longitud: se usa tal cual, pero se avisa
-  return { digits, warning: hadPlus ? 'De otro país' : 'Revisa el indicativo' }
+  // Otro país: se usa tal cual, pero se avisa
+  if (hadPlus) {
+    return { digits: digits.length === LOCAL_LENGTH ? `+${digits}` : digits, warning: 'De otro país' }
+  }
+  return { digits, warning: 'Revisa el indicativo' }
 }
 
 /**
@@ -50,10 +69,13 @@ export function checkTypedPhone(raw: string): PhoneCheck {
 
 /** Cómo se muestra en pantalla: 573001234567 → +57 300 123 4567 */
 export function formatPhone(phone: string | null | undefined): string {
-  const raw = (phone ?? '').replace(/\D/g, '')
+  const text = (phone ?? '').trim()
+  const raw = text.replace(/\D/g, '')
   if (!raw) return ''
-  // Los que quedaron guardados sin indicativo (300 123 4567) también son de Colombia
-  const digits = raw.length === 10 && raw.startsWith('3') ? `${COUNTRY_CODE}${raw}` : raw
+  // Los que quedaron guardados sin indicativo (300 123 4567) son de Colombia.
+  // Con "+" delante ya trae el suyo y no se le supone nada.
+  const local = !text.startsWith('+') && raw.length === LOCAL_LENGTH && raw.startsWith('3')
+  const digits = local ? `${COUNTRY_CODE}${raw}` : raw
   if (digits.length === 12 && digits.startsWith(COUNTRY_CODE)) {
     const n = digits.slice(2)
     return `+57 ${n.slice(0, 3)} ${n.slice(3, 6)} ${n.slice(6)}`

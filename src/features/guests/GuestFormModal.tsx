@@ -5,7 +5,7 @@ import { Bus, Copy, MessageSquareQuote, Music, Plus, Trash2, X } from 'lucide-re
 import { guestMembersApi, guestsApi, seatingTablesApi } from '../../lib/api'
 import { attempt } from '../../lib/attempt'
 import { formatDate } from '../../lib/format'
-import { checkTypedPhone } from '../../lib/phones'
+import { checkTypedPhone, formatPhone } from '../../lib/phones'
 import { ageGroup, guestGroup, options, rsvpStatus } from '../../lib/labels'
 import { Button, IconButton } from '../../components/ui/Button'
 import { Field, FormGrid, Input, Select, Textarea } from '../../components/ui/Field'
@@ -99,6 +99,14 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
 
   const status = useWatch({ control, name: 'rsvp_status' })
   const allowed = useWatch({ control, name: 'plus_ones_allowed' })
+  // Se muestra cómo va a quedar el teléfono antes de guardar: un "+" se respeta
+  // como "de otro país", y un "+300 123 4567" escrito por costumbre quedaría
+  // sin el 57. No se puede adivinar cuál quiso decir, pero sí dejarlo a la vista.
+  const typedPhone = useWatch({ control, name: 'phone' })
+  const phoneCheck = typedPhone?.trim() ? checkTypedPhone(typedPhone) : null
+  const phoneHint = phoneCheck?.digits
+    ? `Se guarda como ${formatPhone(phoneCheck.digits)}${phoneCheck.warning ? ` · ${phoneCheck.warning.toLowerCase()}` : ''}`
+    : undefined
   const hasMembers = members.length > 0
 
   const editMembers = (next: DraftMember[]) => setDrafts(next)
@@ -429,7 +437,7 @@ export function GuestFormModal({ guest, onClose }: { guest?: Guest; onClose: () 
         </fieldset>
 
         <FormGrid>
-          <Field label="Teléfono / WhatsApp" error={errors.phone?.message}>
+          <Field label="Teléfono / WhatsApp" error={errors.phone?.message} hint={phoneHint}>
             {(id, extras) => (
               <Input
                 id={id}

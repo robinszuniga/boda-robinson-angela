@@ -54,6 +54,35 @@ describe('normalizePhone', () => {
   })
 })
 
+describe('números con indicativo escrito', () => {
+  it('con +57 el número tiene que venir completo', () => {
+    // Antes "+57 300123" pasaba como si fuera de otro país y se guardaba 57300123
+    expect(normalizePhone('+57 300123')).toEqual({ digits: null, error: 'Número incompleto' })
+    expect(checkTypedPhone('+57 300123')).toEqual({ digits: null, error: 'Número incompleto' })
+    expect(normalizePhone('+57 300 123 45678')).toEqual({ digits: null, error: 'Número demasiado largo' })
+    expect(normalizePhone('+57 300 123 4567')).toEqual({ digits: '573001234567' })
+  })
+
+  it('un extranjero de 10 dígitos conserva su + para no confundirse con uno colombiano', () => {
+    expect(normalizePhone('+32 2 123 45 67')).toEqual({ digits: '+3221234567', warning: 'De otro país' })
+    // Dinamarca también mide 10 aunque no empiece por 3: al releerlo se le pondría el 57
+    expect(normalizePhone('+45 12 34 56 78').digits).toBe('+4512345678')
+    // Lo ya guardado se vuelve a leer igual
+    expect(normalizePhone('+3221234567').digits).toBe('+3221234567')
+  })
+
+  it('los demás extranjeros siguen guardándose solo con dígitos', () => {
+    expect(normalizePhone('+34 600 260 242').digits).toBe('34600260242')
+    expect(normalizePhone('+54 351 619 1096').digits).toBe('543516191096')
+  })
+
+  it('en pantalla, uno guardado con + no se muestra como colombiano', () => {
+    // Antes +32 2 123 45 67 se veía como +57 322 123 4567
+    expect(formatPhone('+3221234567')).toBe('+3221234567')
+    expect(formatPhone('3221234567')).toBe('+57 322 123 4567')
+  })
+})
+
 describe('formatPhone', () => {
   it('muestra los colombianos separados y los demás con +', () => {
     expect(formatPhone('573001234567')).toBe('+57 300 123 4567')
