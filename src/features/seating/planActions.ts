@@ -3,6 +3,8 @@ import { supabase } from '../../lib/supabase'
 import { tableKey } from '../../lib/crud'
 import { attemptLoud } from '../../lib/attempt'
 import { updateEach } from '../../lib/bulkUpdate'
+import { guestMembersApi, guestsApi } from '../../lib/api'
+import type { DeclinedAtTable } from '../../lib/floorPlan'
 import type { SeatingTable } from '../../types/database'
 
 export interface TablePosition {
@@ -47,4 +49,17 @@ export async function resetTablePositions() {
     .update({ pos_x: null, pos_y: null })
     .not('pos_x', 'is', null)
   if (error) throw error
+}
+
+/**
+ * Saca de su mesa a alguien que dijo que no va: a la invitación, o solo al
+ * acompañante si es él quien estaba sentado aparte.
+ */
+export function useRemoveDeclined() {
+  const updateGuest = guestsApi.useUpdate()
+  const updateMember = guestMembersApi.useUpdate()
+  return (d: Pick<DeclinedAtTable, 'guestId' | 'memberId'>) => {
+    if (d.memberId) updateMember.mutate({ id: d.memberId, values: { table_id: null } })
+    else updateGuest.mutate({ id: d.guestId, values: { table_id: null } })
+  }
 }
