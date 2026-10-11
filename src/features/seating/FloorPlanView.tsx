@@ -1,5 +1,4 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react'
-import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
@@ -17,6 +16,8 @@ import { guestMembersApi, guestsApi, seatingTablesApi, venueElementsApi } from '
 import { tableKey } from '../../lib/crud'
 import { attempt, attemptLoud } from '../../lib/attempt'
 import {
+  autoPositions,
+  clampElementSize,
   declinedAtTable,
   ELEMENT_SIZE,
   elementLabel,
@@ -24,11 +25,11 @@ import {
   normalizeRotation,
   peopleAtTable,
   snap,
+  type DeclinedAtTable,
   type Point,
   type SeatPerson,
 } from '../../lib/floorPlan'
 import { seatsFor, type TableOccupancy } from '../../lib/seating'
-import { invitationStage, openedNote } from '../../lib/invitationStatus'
 import { plural } from '../../lib/format'
 import { options, tableShape, venueElementKind } from '../../lib/labels'
 import { Button, ButtonLink, IconButton } from '../../components/ui/Button'
@@ -44,10 +45,10 @@ import { SeatGuestsModal } from './SeatGuestsModal'
 import { AssignModal } from './AssignModal'
 import { TableFormModal } from './TableFormModal'
 import { resetTablePositions, useSaveTablePositions } from './planActions'
+import { OpenedNote } from '../guests/OpenedNote'
 
 const ROTATE_STEP = 45
 const clampPos = (v: number) => Math.max(-10000, Math.min(10000, v))
-const clampSize = (v: number) => Math.max(20, Math.min(3000, v))
 
 /** La migración 0016 no se ha ejecutado en Supabase */
 function missingMigration(error: unknown) {
@@ -55,13 +56,7 @@ function missingMigration(error: unknown) {
   return code === 'PGRST205' || code === '42P01' || code === 'PGRST204' || code === '42703'
 }
 
-interface Declined {
-  key: string
-  name: string
-  tableNumber: number
-  guestId: string
-  memberId: string | null
-}
+type Declined = DeclinedAtTable & { tableNumber: number }
 
 export function FloorPlanView({
   tables,
@@ -69,12 +64,18 @@ export function FloorPlanView({
   members,
   occ,
   nextNumber,
+  unseatedPeople,
+  assign,
 }: {
   tables: SeatingTable[]
   guests: Guest[]
   members: GuestMember[]
   occ: TableOccupancy[]
   nextNumber: number
+  /** Personas que aún no tienen mesa (las cuenta la página de Mesas) */
+  unseatedPeople: number
+  /** Sentar a un invitado en una mesa (o sacarlo), con el mismo aviso de sobrecupo que la lista */
+  assign: (guest: Guest, tableId: string | null) => void
 }) {
   const qc = useQueryClient()
   const confirm = useConfirm()
@@ -99,6 +100,14 @@ export function FloorPlanView({
     () => layoutPlan(tables, new Map(occ.map((o) => [o.table.id, o.used])), elementList ?? []),
     [tables, occ, elementList],
   )
+  // Los que dijeron que no y siguen en una mesa: para el aviso rojo de cada mesa y la lista del panel
+  const declined = useMemo<Declined[]>(
+    () =>
+      occ.flatMap((o) =>
+        declinedAtTable(o.table.id, guests, members).map((d) => ({ ...d, tableNumber: o.table.number })),
+      ),
+    [occ, guests, members],
+  )
   const infos = useMemo(
     () =>
       new Map<string, TableInfo>(
@@ -108,11 +117,11 @@ export function FloorPlanView({
             people: peopleAtTable(o.table.id, guests, members),
             used: o.used,
             status: o.status,
-            declined: declinedAtTable(o.table.id, guests, members).map((d) => d.name),
+            declined: declined.filter((d) => d.tableNumber === o.table.number).map((d) => d.name),
           },
         ]),
       ),
-    [occ, guests, members],
+    [occ, guests, members, declined],
   )
 
   if (elements.isError) {
@@ -134,38 +143,47 @@ export function FloorPlanView({
   const allElements = elements.data
   const occById = new Map(occ.map((o) => [o.table.id, o]))
   const attending = guests.filter((g) => g.rsvp_status !== 'rechazado')
-  const declined: Declined[] = occ.flatMap((o) =>
-    declinedAtTable(o.table.id, guests, members).map((d) => ({ ...d, tableNumber: o.table.number })),
-  )
-  const tableIds = new Set(tables.map((t) => t.id))
-  const unseatedPeople = attending
-    .filter((g) => !g.table_id || !tableIds.has(g.table_id))
-    .reduce((s, g) => s + seatsFor(g, members), 0)
 
   const selTable = selected?.type === 'table' ? occById.get(selected.id) : undefined
   const selElement = selected?.type === 'element' ? allElements.find((e) => e.id === selected.id) : undefined
   const seatingOcc = seatingAt ? occById.get(seatingAt) : undefined
 
-  const moveTable = (id: string, to: Point) => {
-    // Las demás mesas sin ubicar se guardan donde están, para que no salten de lugar
-    const unplaced = layout.tables
-      .filter((p) => p.auto && p.table.id !== id)
-      .map((p) => ({ id: p.table.id, pos_x: clampPos(p.center.x), pos_y: clampPos(p.center.y) }))
-    return savePositions([{ id, pos_x: clampPos(to.x), pos_y: clampPos(to.y) }, ...unplaced])
+  /** Dónde quedaron las mesas sin ubicar (menos `exceptId`), listas para guardarse */
+  const unplaced = (exceptId?: string) =>
+    autoPositions(layout, exceptId).map((r) => ({ ...r, pos_x: clampPos(r.pos_x), pos_y: clampPos(r.pos_y) }))
+
+  /**
+   * Antes de cambiar algo que mueve los bordes del plano (un elemento, la forma o
+   * el giro de una mesa), las mesas sin ubicar se guardan donde están para que no salten.
+   */
+  const keepingUnplaced = async <T,>(change: () => Promise<T>) => {
+    const rows = unplaced()
+    if (rows.length > 0) await savePositions(rows)
+    return change()
   }
 
+  const moveTable = (id: string, to: Point) =>
+    savePositions([{ id, pos_x: clampPos(to.x), pos_y: clampPos(to.y) }, ...unplaced(id)])
+
   const moveElement = (id: string, to: Point) =>
-    updateElement.mutateAsync({ id, values: { pos_x: clampPos(to.x), pos_y: clampPos(to.y) } })
+    keepingUnplaced(() => updateElement.mutateAsync({ id, values: { pos_x: clampPos(to.x), pos_y: clampPos(to.y) } }))
 
   const resizeElement = (id: string, box: ElementBox) =>
-    updateElement.mutateAsync({
-      id,
-      values: {
-        pos_x: clampPos(box.pos_x),
-        pos_y: clampPos(box.pos_y),
-        width: clampSize(box.width),
-        height: clampSize(box.height),
-      },
+    keepingUnplaced(() =>
+      updateElement.mutateAsync({
+        id,
+        values: {
+          pos_x: clampPos(box.pos_x),
+          pos_y: clampPos(box.pos_y),
+          width: clampElementSize(box.width),
+          height: clampElementSize(box.height),
+        },
+      }),
+    )
+
+  const updatePlanTable = (id: string, values: { shape?: TableShape; rotation?: number }) =>
+    keepingUnplaced(() => updateTable.mutateAsync({ id, values })).catch(() => {
+      // El error ya lo mostró el toast de las mutaciones
     })
 
   const onSeatTap = async (tableId: string, person: SeatPerson | null) => {
@@ -194,27 +212,20 @@ export function FloorPlanView({
     else updateGuest.mutate({ id: d.guestId, values: { table_id: null } })
   }
 
-  const assign = (guest: Guest, tableId: string | null) => {
-    if (guest.table_id === tableId) return
-    const target = occById.get(tableId ?? '')
-    if (target && target.used + seatsFor(guest, members) > target.table.capacity) {
-      toast.warning(`La mesa ${target.table.number} queda con sobrecupo`)
-    }
-    updateGuest.mutate({ id: guest.id, values: { table_id: tableId } })
-  }
-
   const addElement = async (kind: VenueElementKind) => {
     const at = canvas.current?.center() ?? { x: 0, y: 0 }
     const size = ELEMENT_SIZE[kind]
     setAdding(false)
     try {
-      const [row] = await createElement.mutateAsync({
-        kind,
-        pos_x: clampPos(snap(at.x)),
-        pos_y: clampPos(snap(at.y)),
-        width: size.width,
-        height: size.height,
-      })
+      const [row] = await keepingUnplaced(() =>
+        createElement.mutateAsync({
+          kind,
+          pos_x: clampPos(snap(at.x)),
+          pos_y: clampPos(snap(at.y)),
+          width: size.width,
+          height: size.height,
+        }),
+      )
       if (row) setSelected({ type: 'element', id: row.id })
     } catch {
       // El error ya lo mostró el toast de las mutaciones
@@ -231,6 +242,8 @@ export function FloorPlanView({
     if (!ok) return
     await attemptLoud(resetTablePositions())
     await qc.invalidateQueries({ queryKey: tableKey('seating_tables') })
+    // Las filas quedan debajo de todo: si estaban viendo otra parte del salón, no las verían
+    canvas.current?.fit()
   }
 
   return (
@@ -308,12 +321,9 @@ export function FloorPlanView({
               occ={selTable}
               members={members}
               declined={declined.filter((d) => d.tableNumber === selTable.table.number)}
-              onShape={(shape) => updateTable.mutate({ id: selTable.table.id, values: { shape } })}
+              onShape={(shape) => updatePlanTable(selTable.table.id, { shape })}
               onRotate={(delta) =>
-                updateTable.mutate({
-                  id: selTable.table.id,
-                  values: { rotation: normalizeRotation(selTable.table.rotation + delta) },
-                })
+                updatePlanTable(selTable.table.id, { rotation: normalizeRotation(selTable.table.rotation + delta) })
               }
               onSeat={() => setSeatingAt(selTable.table.id)}
               onEdit={() => setEditing(selTable.table)}
@@ -327,13 +337,15 @@ export function FloorPlanView({
               element={selElement}
               onRename={(label) => updateElement.mutate({ id: selElement.id, values: { label } })}
               onRotate={(delta) =>
-                updateElement.mutate({
-                  id: selElement.id,
-                  values: { rotation: normalizeRotation(selElement.rotation + delta) },
-                })
+                keepingUnplaced(() =>
+                  updateElement.mutateAsync({
+                    id: selElement.id,
+                    values: { rotation: normalizeRotation(selElement.rotation + delta) },
+                  }),
+                ).catch(() => {})
               }
               onDelete={async () => {
-                if (await attempt(removeElement.mutateAsync(selElement.id))) setSelected(null)
+                if (await attempt(keepingUnplaced(() => removeElement.mutateAsync(selElement.id)))) setSelected(null)
               }}
               onClose={() => setSelected(null)}
             />
@@ -579,16 +591,7 @@ function TablePanel({
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate">{g.name}</span>
-                      {openedNote(g) && (
-                        <span
-                          className={cn(
-                            'block text-xs',
-                            invitationStage(g) === 'sin_abrir' ? 'text-amber-800' : 'text-muted',
-                          )}
-                        >
-                          {openedNote(g)}
-                        </span>
-                      )}
+                      <OpenedNote guest={g} block />
                     </span>
                     {extra > 0 && <span className="text-xs text-muted">+{extra}</span>}
                   </button>

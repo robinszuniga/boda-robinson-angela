@@ -7,14 +7,13 @@ import { attemptLoud } from '../../lib/attempt'
 import { updateGuestsEach } from '../../lib/guestBulk'
 import { seatsFor, type TableOccupancy } from '../../lib/seating'
 import { guestGroup } from '../../lib/labels'
+import { GROUP_ORDER } from '../../lib/autoSeating'
 import { plural } from '../../lib/format'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
 import { cn } from '../../components/ui/cn'
-import type { Guest, GuestGroup, GuestMember, SeatingTable } from '../../types/database'
-
-const GROUP_ORDER: GuestGroup[] = ['familia_novio', 'familia_novia', 'amigos', 'trabajo', 'otros']
+import type { Guest, GuestMember, SeatingTable } from '../../types/database'
 
 const byGroupCircleName = (a: Guest, b: Guest) =>
   GROUP_ORDER.indexOf(a.guest_group) - GROUP_ORDER.indexOf(b.guest_group) ||
@@ -53,8 +52,8 @@ export function SeatGuestsModal({
 
   const chosen = guests.filter((g) => picked.has(g.id))
   const seats = chosen.reduce((sum, g) => sum + seatsFor(g, members), 0)
-  const free = Math.max(0, occ.free)
-  const over = seats - free
+  // occ.free es negativo si la mesa ya estaba pasada: ese exceso también cuenta
+  const over = seats - occ.free
 
   const toggle = (id: string) =>
     setPicked((prev) => {

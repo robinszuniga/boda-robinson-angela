@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { tableKey } from '../../lib/crud'
 import { attemptLoud } from '../../lib/attempt'
-import { describeError, friendlyError } from '../../lib/errors'
+import { updateEach } from '../../lib/bulkUpdate'
 import type { SeatingTable } from '../../types/database'
 
 export interface TablePosition {
@@ -11,23 +11,10 @@ export interface TablePosition {
   pos_y: number
 }
 
-const CHUNK = 10
-
-async function savePositions(rows: TablePosition[]) {
-  for (let i = 0; i < rows.length; i += CHUNK) {
-    const results = await Promise.all(
-      rows
-        .slice(i, i + CHUNK)
-        .map((r) => supabase.from('seating_tables').update({ pos_x: r.pos_x, pos_y: r.pos_y }).eq('id', r.id)),
-    )
-    const failed = results.find((r) => r.error)
-    if (failed?.error) throw friendlyError(`No se pudo guardar dónde quedó la mesa. ${describeError(failed.error)}`)
-  }
-}
-
 /**
- * Guarda la posición de una o varias mesas. Se ve al instante y, si falla,
- * las mesas vuelven a donde estaban.
+ * Guarda la posición de una o varias mesas. Se ve al instante; si falla,
+ * se vuelve a leer lo que de verdad quedó guardado (no se restaura una copia
+ * vieja, que borraría otros movimientos hechos mientras tanto).
  */
 export function useSaveTablePositions() {
   const qc = useQueryClient()
@@ -35,19 +22,19 @@ export function useSaveTablePositions() {
   return async (rows: TablePosition[]) => {
     if (rows.length === 0) return true
     await qc.cancelQueries({ queryKey: key })
-    const previous = qc.getQueryData<SeatingTable[]>(key)
     const byId = new Map(rows.map((r) => [r.id, r]))
-    if (previous) {
-      qc.setQueryData<SeatingTable[]>(
-        key,
-        previous.map((t) => {
-          const r = byId.get(t.id)
-          return r ? { ...t, pos_x: r.pos_x, pos_y: r.pos_y } : t
-        }),
-      )
-    }
-    const ok = await attemptLoud(savePositions(rows))
-    if (!ok && previous) qc.setQueryData(key, previous)
+    qc.setQueryData<SeatingTable[]>(key, (current) =>
+      current?.map((t) => {
+        const r = byId.get(t.id)
+        return r ? { ...t, pos_x: r.pos_x, pos_y: r.pos_y } : t
+      }),
+    )
+    const ok = await attemptLoud(
+      updateEach(
+        'seating_tables',
+        rows.map((r) => ({ id: r.id, values: { pos_x: r.pos_x, pos_y: r.pos_y } })),
+      ),
+    )
     await qc.invalidateQueries({ queryKey: key })
     return ok
   }

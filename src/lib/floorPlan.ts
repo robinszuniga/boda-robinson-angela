@@ -180,6 +180,16 @@ export function layoutPlan(
   }
 }
 
+/**
+ * Dónde quedaron las mesas sin ubicar. Se guardan ahí antes de cualquier cambio
+ * del plano: su fila depende de lo demás (debajo de todo), y si no, saltarían.
+ */
+export function autoPositions(layout: PlanLayout, exceptId?: string): { id: string; pos_x: number; pos_y: number }[] {
+  return layout.tables
+    .filter((p) => p.auto && p.table.id !== exceptId)
+    .map((p) => ({ id: p.table.id, pos_x: p.center.x, pos_y: p.center.y }))
+}
+
 // -------------------------------------------------------------
 // Quién va en cada puesto
 // -------------------------------------------------------------
@@ -274,7 +284,8 @@ export function declinedAtTable(tableId: string, guests: Guest[], members: Guest
   for (const m of members) {
     if (m.table_id !== tableId) continue
     const g = byId.get(m.guest_id)
-    if (!g) continue
+    // Si está en la misma mesa de su invitación no está "aparte": su puesto lo cuenta la invitación
+    if (!g || g.table_id === tableId) continue
     if (m.attending === false || g.rsvp_status === 'rechazado') {
       list.push({ key: m.id, name: m.name, guestId: g.id, memberId: m.id })
     }
@@ -287,6 +298,11 @@ export function declinedAtTable(tableId: string, guests: Guest[], members: Guest
 // -------------------------------------------------------------
 
 export const elementLabel = (e: Pick<VenueElement, 'label' | 'kind'>) => e.label?.trim() || venueElementKind[e.kind]
+
+/** Límites de tamaño de un elemento (los mismos de la base de datos) */
+export const ELEMENT_MIN = 20
+export const ELEMENT_MAX = 3000
+export const clampElementSize = (v: number) => Math.min(ELEMENT_MAX, Math.max(ELEMENT_MIN, v))
 
 export const ELEMENT_SIZE: Record<VenueElementKind, { width: number; height: number }> = {
   pista: { width: 320, height: 320 },

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  autoPositions,
   declinedAtTable,
   fitView,
   initials,
@@ -139,6 +140,31 @@ describe('layoutPlan', () => {
   })
 })
 
+describe('autoPositions', () => {
+  it('da dónde quedaron las mesas sin ubicar, para guardarlas antes de cambiar el plano', () => {
+    const fija = table({ number: 1, pos_x: 100, pos_y: 100 })
+    const t2 = table({ number: 2 })
+    const t3 = table({ number: 3 })
+    const plan = layoutPlan([fija, t2, t3], new Map())
+    const rows = autoPositions(plan)
+    expect(rows.map((r) => r.id)).toEqual([t2.id, t3.id])
+    expect(rows[0]).toEqual({ id: t2.id, pos_x: plan.tables[1].center.x, pos_y: plan.tables[1].center.y })
+    expect(autoPositions(plan, t2.id).map((r) => r.id)).toEqual([t3.id])
+  })
+
+  it('guardadas ahí, ya no se mueven aunque cambie lo demás del salón', () => {
+    const fija = table({ number: 1, pos_x: 100, pos_y: 100 })
+    const t2 = table({ number: 2 })
+    const before = layoutPlan([fija, t2], new Map())
+    const [saved] = autoPositions(before)
+    const frozen = { ...t2, pos_x: saved.pos_x, pos_y: saved.pos_y }
+    // Una pista grande más abajo empujaría la fila de las sin ubicar
+    const after = layoutPlan([fija, frozen], new Map(), [element({ pos_y: 900, height: 600 })])
+    expect(after.tables[1].center).toEqual(before.tables[1].center)
+    expect(autoPositions(after)).toEqual([])
+  })
+})
+
 describe('initials', () => {
   it('toma la inicial de las dos primeras palabras', () => {
     expect(initials('ángela maría Ruiz')).toBe('ÁM')
@@ -184,6 +210,13 @@ describe('declinedAtTable', () => {
       ['Primo', primo.id],
     ])
     expect(declinedAtTable(otra.id, [juan, sí], [primo])).toEqual([])
+  })
+
+  it('no avisa por un acompañante que está en la misma mesa de su invitación: ese puesto lo cuenta la invitación', () => {
+    const t = table()
+    const pendiente = guest({ name: 'Ana', table_id: t.id, plus_ones_allowed: 1 })
+    const primo = member({ guest_id: pendiente.id, name: 'Primo', attending: false, table_id: t.id })
+    expect(declinedAtTable(t.id, [pendiente], [primo])).toEqual([])
   })
 })
 

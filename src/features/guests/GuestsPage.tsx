@@ -38,7 +38,8 @@ import { RemindersModal } from './RemindersModal'
 import { GuestQrModal } from './GuestQrModal'
 import { CirclesModal } from './CirclesModal'
 import { updateGuests } from '../../lib/guestBulk'
-import { invitationStage, openedNote } from '../../lib/invitationStatus'
+import { invitationStage } from '../../lib/invitationStatus'
+import { OpenedNote } from './OpenedNote'
 
 type AgeFilter = '' | 'nino' | 'mayor'
 type SentFilter = '' | 'sin_enviar' | 'sin_responder' | 'sin_abrir' | 'abierta'
@@ -64,12 +65,21 @@ export default function GuestsPage() {
   const [group, setGroup] = useState<GuestGroup | ''>('')
   const [status, setStatus] = useState<RsvpStatus | ''>('')
   const [age, setAge] = useState<AgeFilter>('')
-  const [params] = useSearchParams()
-  // Inicio enlaza aquí con el filtro puesto (?invitacion=sin_abrir)
-  const [sent, setSent] = useState<SentFilter>(() => {
-    const value = params.get('invitacion') as SentFilter
-    return SENT_FILTERS.includes(value) ? value : ''
-  })
+  // El filtro de invitación vive en la dirección (Inicio enlaza con ?invitacion=sin_abrir),
+  // así al recargar o volver atrás queda el que eligieron por última vez
+  const [params, setParams] = useSearchParams()
+  const sentParam = params.get('invitacion') as SentFilter
+  const sent: SentFilter = SENT_FILTERS.includes(sentParam) ? sentParam : ''
+  const setSent = (value: SentFilter) =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (value) next.set('invitacion', value)
+        else next.delete('invitacion')
+        return next
+      },
+      { replace: true },
+    )
   const [circlesOpen, setCirclesOpen] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [circleInput, setCircleInput] = useState('')
@@ -270,7 +280,6 @@ export default function GuestsPage() {
               const ages = ageSummary(agesOf.get(g.id)!)
               const waiting =
                 g.invitation_sent_at && g.rsvp_status === 'pendiente' ? -daysFromToday(g.invitation_sent_at) : null
-              const opened = openedNote(g)
               return (
                 <li key={g.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
                   <input
@@ -295,9 +304,7 @@ export default function GuestsPage() {
                       {ages && ` · ${ages}`}
                       {waiting != null &&
                         ` · invitada ${waiting === 0 ? 'hoy' : waiting === 1 ? 'ayer' : `hace ${waiting} días`}`}
-                      {opened && (
-                        <span className={invitationStage(g) === 'sin_abrir' ? 'text-amber-800' : undefined}> · {opened}</span>
-                      )}
+                      <OpenedNote guest={g} prefix=" · " />
                       {g.table_id && tableNumber.has(g.table_id) && ` · Mesa ${tableNumber.get(g.table_id)}`}
                       {g.dietary && ` · ${g.dietary}`}
                       {g.song_request && <Music className="ml-1.5 inline size-3 -translate-y-px" aria-label={`Pidió: ${g.song_request}`} />}

@@ -3,11 +3,11 @@ import { Check, Copy, MessageCircle } from 'lucide-react'
 import { guestsApi } from '../../lib/api'
 import { whatsappNumber } from '../../lib/contact'
 import { daysFromToday, formatDate } from '../../lib/format'
-import { invitationStage, openedNote } from '../../lib/invitationStatus'
 import { Modal } from '../../components/ui/Modal'
 import { Button, IconButton } from '../../components/ui/Button'
 import type { Guest, WeddingSettings } from '../../types/database'
 import { reminderText, reminderWhatsapp } from './rsvpLinks'
+import { OpenedNote } from './OpenedNote'
 
 /** Recordatorio a quienes no han confirmado: un WhatsApp con el mensaje ya escrito por cada uno */
 export function RemindersModal({
@@ -66,12 +66,7 @@ export function RemindersModal({
                     ) : (
                       'Sin recordatorio'
                     )}
-                    {openedNote(g) && (
-                      <span className={invitationStage(g) === 'sin_abrir' ? 'text-amber-800' : undefined}>
-                        {' · '}
-                        {openedNote(g)}
-                      </span>
-                    )}
+                    <OpenedNote guest={g} prefix=" · " />
                     {!g.phone && ' · sin teléfono'}
                   </p>
                 </div>

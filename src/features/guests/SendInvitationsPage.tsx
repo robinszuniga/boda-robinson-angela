@@ -6,7 +6,6 @@ import { attempt } from '../../lib/attempt'
 import { whatsappLink } from '../../lib/contact'
 import { formatPhone } from '../../lib/phones'
 import { formatDate } from '../../lib/format'
-import { invitationStage, openedNote } from '../../lib/invitationStatus'
 import { guestGroup, options } from '../../lib/labels'
 import { Button } from '../../components/ui/Button'
 import { Card, EmptyState, ErrorState, LoadingState, PageHeader, ProgressBar, Segmented } from '../../components/ui/Display'
@@ -14,6 +13,7 @@ import { Select } from '../../components/ui/Field'
 import type { Guest, GuestGroup } from '../../types/database'
 import { copyRsvpLink, invitationText } from './rsvpLinks'
 import { PhonesCsvModal } from './PhonesCsvModal'
+import { OpenedNote } from './OpenedNote'
 
 type Tab = 'por_enviar' | 'enviadas' | 'sin_telefono'
 
@@ -166,9 +166,7 @@ export default function SendInvitationsPage() {
                   {guestGroup[g.guest_group]}
                   {g.phone && ` · ${formatPhone(g.phone)}`}
                   {g.invitation_sent_at && ` · enviada el ${formatDate(g.invitation_sent_at)}`}
-                  {openedNote(g) && (
-                    <span className={invitationStage(g) === 'sin_abrir' ? 'text-amber-800' : undefined}> · {openedNote(g)}</span>
-                  )}
+                  <OpenedNote guest={g} prefix=" · " />
                 </p>
               </div>
               {tab === 'enviadas' ? (

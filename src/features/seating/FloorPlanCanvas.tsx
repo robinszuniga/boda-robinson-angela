@@ -12,6 +12,7 @@ import {
 } from 'react'
 import { Maximize, Minus, Plus } from 'lucide-react'
 import {
+  clampElementSize,
   clampViewW,
   fitView,
   rotate,
@@ -38,6 +39,8 @@ export interface ElementBox {
 export interface FloorPlanHandle {
   /** Centro de lo que se ve, para poner ahí lo nuevo */
   center: () => Point
+  /** Vuelve a mostrar todo el salón */
+  fit: () => void
 }
 
 type Target =
@@ -56,6 +59,7 @@ interface Gesture {
   startClient: Point
   startView: ViewBox
   moved: boolean
+  seq: number
   action: Action | null
   /** Posición y tamaño del objeto al empezar a arrastrarlo */
   origin: { id: string; x: number; y: number; w: number; h: number; rotation: number } | null
@@ -67,7 +71,8 @@ interface Pinch {
   midWorld: Point
 }
 
-type Drag = { type: 'table' | 'element'; id: string; x: number; y: number; w: number; h: number }
+/** `seq` distingue un arrastre de otro del mismo objeto: al terminar de guardar uno no se borra el siguiente */
+type Drag = { seq: number; type: 'table' | 'element'; id: string; x: number; y: number; w: number; h: number }
 
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y)
 const middle = (a: Point, b: Point) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
@@ -134,6 +139,7 @@ export function FloorPlanCanvas({
   const [manualView, setManualView] = useState<ViewBox | null>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
   const dragRef = useRef<Drag | null>(null)
+  const dragSeq = useRef(0)
   const pointers = useRef(new Map<number, Point>())
   const gesture = useRef<Gesture | null>(null)
   const pinch = useRef<Pinch | null>(null)
@@ -148,7 +154,11 @@ export function FloorPlanCanvas({
     live.current = { view, aspect }
   })
 
-  useImperativeHandle(ref, () => ({ center: () => ({ x: view.x + view.w / 2, y: view.y + viewH / 2 }) }), [view, viewH])
+  useImperativeHandle(
+    ref,
+    () => ({ center: () => ({ x: view.x + view.w / 2, y: view.y + viewH / 2 }), fit: () => setManualView(null) }),
+    [view, viewH],
+  )
 
   useEffect(() => {
     const el = wrapRef.current
@@ -173,12 +183,16 @@ export function FloorPlanCanvas({
     if (!svg) return
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      const { view: v, aspect: a } = live.current
       const rect = svg.getBoundingClientRect()
-      const s = v.w / rect.width
-      const at = { x: v.x + (e.clientX - rect.left) * s, y: v.y + (e.clientY - rect.top) * s }
       const speed = e.ctrlKey ? 0.01 : e.deltaMode === 1 ? 0.05 : 0.0015
-      setManualView(zoomView(v, Math.exp(-e.deltaY * speed), at, a))
+      const factor = Math.exp(-e.deltaY * speed)
+      // Sobre la vista más reciente: el touchpad manda varios eventos antes de que se vuelva a dibujar
+      setManualView((prev) => {
+        const v = prev ?? live.current.view
+        const s = v.w / rect.width
+        const at = { x: v.x + (e.clientX - rect.left) * s, y: v.y + (e.clientY - rect.top) * s }
+        return zoomView(v, factor, at, live.current.aspect)
+      })
     }
     svg.addEventListener('wheel', onWheel, { passive: false })
     return () => svg.removeEventListener('wheel', onWheel)
@@ -216,11 +230,11 @@ export function FloorPlanCanvas({
   }
 
   /** Mientras se guarda, la mesa se queda donde la soltaron (y no salta a la posición anterior) */
-  const commit = (id: string, save: Promise<unknown>) => {
+  const commit = (seq: number, save: Promise<unknown>) => {
     save
       .catch(() => {})
       .finally(() => {
-        if (dragRef.current?.id === id) updateDrag(null)
+        if (dragRef.current?.seq === seq) updateDrag(null)
       })
   }
 
@@ -256,8 +270,8 @@ export function FloorPlanCanvas({
     setManualView((v) => v ?? view)
     if (pointers.current.size === 2) {
       // Segundo dedo: pasa a acercar/alejar y se olvida lo que hacía el primero
+      if (gesture.current && dragRef.current?.seq === gesture.current.seq) updateDrag(null)
       gesture.current = null
-      updateDrag(null)
       const [a, b] = [...pointers.current.values()]
       const m = middle(a, b)
       pinch.current = { startDist: Math.max(1, distance(a, b)), startView: view, midWorld: toWorld(m.x, m.y, view) }
@@ -271,6 +285,7 @@ export function FloorPlanCanvas({
       startClient: { x: e.clientX, y: e.clientY },
       startView: view,
       moved: false,
+      seq: 0,
       action: null,
       origin: null,
     }
@@ -299,6 +314,7 @@ export function FloorPlanCanvas({
     if (!g.moved) {
       if (Math.hypot(dx, dy) < (g.pointerType === 'mouse' ? 4 : 8)) return
       g.moved = true
+      g.seq = ++dragSeq.current
       g.action = startAction(g)
     }
     const s = g.startView.w / rect.width
@@ -308,18 +324,19 @@ export function FloorPlanCanvas({
         setManualView({ x: g.startView.x - dx * s, y: g.startView.y - dy * s, w: g.startView.w })
         break
       case 'move-table':
-        updateDrag({ type: 'table', id: o!.id, x: o!.x + dx * s, y: o!.y + dy * s, w: 0, h: 0 })
+        updateDrag({ seq: g.seq, type: 'table', id: o!.id, x: o!.x + dx * s, y: o!.y + dy * s, w: 0, h: 0 })
         break
       case 'move-element':
-        updateDrag({ type: 'element', id: o!.id, x: o!.x + dx * s, y: o!.y + dy * s, w: o!.w, h: o!.h })
+        updateDrag({ seq: g.seq, type: 'element', id: o!.id, x: o!.x + dx * s, y: o!.y + dy * s, w: o!.w, h: o!.h })
         break
       case 'resize': {
         // La esquina contraria se queda quieta, aunque el elemento esté girado
         const local = rotate({ x: dx * s, y: dy * s }, -o!.rotation)
-        const w = Math.max(20, o!.w + local.x)
-        const h = Math.max(20, o!.h + local.y)
+        // Con los mismos límites que se guardan, para que al soltar no se corra
+        const w = clampElementSize(o!.w + local.x)
+        const h = clampElementSize(o!.h + local.y)
         const shift = rotate({ x: (w - o!.w) / 2, y: (h - o!.h) / 2 }, o!.rotation)
-        updateDrag({ type: 'element', id: o!.id, x: o!.x + shift.x, y: o!.y + shift.y, w, h })
+        updateDrag({ seq: g.seq, type: 'element', id: o!.id, x: o!.x + shift.x, y: o!.y + shift.y, w, h })
         break
       }
     }
@@ -336,7 +353,8 @@ export function FloorPlanCanvas({
     if (!g || g.pointerId !== e.pointerId) return
     gesture.current = null
     if (cancelled) {
-      if (g.action && g.action !== 'pan') updateDrag(null)
+      // Solo el arrastre de este gesto; otro que se esté guardando sigue donde lo soltaron
+      if (dragRef.current?.seq === g.seq) updateDrag(null)
       return
     }
     if (!g.moved) {
@@ -344,19 +362,19 @@ export function FloorPlanCanvas({
       return
     }
     const d = dragRef.current
-    if (!d || !g.origin) return
+    if (!d || d.seq !== g.seq || !g.origin) return
     const x = snap(d.x)
     const y = snap(d.y)
     if (g.action === 'move-table') {
       updateDrag({ ...d, x, y })
-      commit(d.id, onMoveTable(d.id, { x, y }))
+      commit(d.seq, onMoveTable(d.id, { x, y }))
     } else if (g.action === 'move-element') {
       updateDrag({ ...d, x, y })
-      commit(d.id, onMoveElement(d.id, { x, y }))
+      commit(d.seq, onMoveElement(d.id, { x, y }))
     } else if (g.action === 'resize') {
       const box = { pos_x: Math.round(d.x), pos_y: Math.round(d.y), width: Math.round(d.w), height: Math.round(d.h) }
       updateDrag({ ...d, x: box.pos_x, y: box.pos_y, w: box.width, h: box.height })
-      commit(d.id, onResizeElement(d.id, box))
+      commit(d.seq, onResizeElement(d.id, box))
     }
   }
 
