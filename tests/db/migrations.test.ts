@@ -552,3 +552,40 @@ describe('plano del salón (0016)', () => {
     await expect(db.query(`insert into public.venue_elements (kind, label) values ('otro', '  ')`)).rejects.toThrow()
   })
 })
+
+describe('invitación abierta (0017)', () => {
+  const openedAt = async (id: string) => {
+    await as('postgres')
+    const [g] = await rows<{ rsvp_opened_at: Date | null }>('select rsvp_opened_at from public.guests where id = $1', [id])
+    return g.rsvp_opened_at
+  }
+
+  it('el invitado que abre su link queda registrado, y cuenta la primera vez', async () => {
+    const g = await newGuest('Tía Marta')
+    expect(await openedAt(g.id)).toBeNull()
+    await as('anon')
+    await db.query('select public.rsvp_mark_opened($1)', [g.rsvp_token])
+    const first = await openedAt(g.id)
+    expect(first).not.toBeNull()
+
+    await as('anon')
+    await db.query('select public.rsvp_mark_opened($1)', [g.rsvp_token])
+    expect(await openedAt(g.id)).toEqual(first)
+  })
+
+  it('los novios revisando el link no cuentan como que el invitado la abrió', async () => {
+    const g = await newGuest('Tía Marta')
+    await as('authenticated', COUPLE)
+    await db.query('select public.rsvp_mark_opened($1)', [g.rsvp_token])
+    expect(await openedAt(g.id)).toBeNull()
+  })
+
+  it('un token falso no hace nada ni da pistas', async () => {
+    const g = await newGuest('Tía Marta')
+    await as('anon')
+    await db.query('select public.rsvp_mark_opened($1)', ['falso-falso-falso-falso'])
+    expect(await openedAt(g.id)).toBeNull()
+    await as('anon')
+    await expect(db.query('select rsvp_opened_at from public.guests')).rejects.toThrow(/permission denied/)
+  })
+})

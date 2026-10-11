@@ -11,6 +11,7 @@ import {
 } from '../../lib/api'
 import { summarizeBudget, upcomingPayments } from '../../lib/budget'
 import { headcount, linkConflicts } from '../../lib/seating'
+import { pendingByStage } from '../../lib/invitationStatus'
 import { daysFromToday, formatCOP, formatDate, formatPercent, formatWeddingDate, plural } from '../../lib/format'
 import { assigneeLabel, taskPriority } from '../../lib/labels'
 import { Badge, Card, CardHeader, ErrorState, LoadingState, ProgressBar, Stat } from '../../components/ui/Display'
@@ -42,6 +43,7 @@ export default function DashboardPage() {
   const s = settings.data
   const budget = summarizeBudget(categories.data ?? [], vendors.data ?? [], payments.data ?? [])
   const people = headcount(guests.data ?? [])
+  const stages = pendingByStage(guests.data ?? [])
   const conflicts = linkConflicts(links.data ?? [], guests.data ?? [])
   const nextPayments = upcomingPayments(payments.data ?? [])
   const vendorName = new Map((vendors.data ?? []).map((v) => [v.id, v.name]))
@@ -254,6 +256,22 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
+          {people.pendingGuests > 0 && (
+            <p className="border-t border-line px-5 py-3 text-sm text-muted">
+              De las pendientes:{' '}
+              {[
+                stages.sin_abrir > 0 && (
+                  <Link key="a" to="/invitados?invitacion=sin_abrir" className="font-medium text-amber-800 hover:underline">
+                    {plural(stages.sin_abrir, 'aún no la abre', 'aún no la abren')}
+                  </Link>
+                ),
+                stages.abierta > 0 && plural(stages.abierta, 'la abrió y no responde', 'la abrieron y no responden'),
+                stages.sin_enviar > 0 && `${stages.sin_enviar} sin enviar`,
+              ]
+                .filter(Boolean)
+                .flatMap((part, i) => (i === 0 ? [part] : [' · ', part]))}
+            </p>
+          )}
         </Card>
       </div>
     </div>

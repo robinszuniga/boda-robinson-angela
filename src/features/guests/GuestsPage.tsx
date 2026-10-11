@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import {
   BellRing,
@@ -37,9 +38,11 @@ import { RemindersModal } from './RemindersModal'
 import { GuestQrModal } from './GuestQrModal'
 import { CirclesModal } from './CirclesModal'
 import { updateGuests } from '../../lib/guestBulk'
+import { invitationStage, openedNote } from '../../lib/invitationStatus'
 
 type AgeFilter = '' | 'nino' | 'mayor'
-type SentFilter = '' | 'sin_enviar' | 'sin_responder'
+type SentFilter = '' | 'sin_enviar' | 'sin_responder' | 'sin_abrir' | 'abierta'
+const SENT_FILTERS: SentFilter[] = ['sin_enviar', 'sin_responder', 'sin_abrir', 'abierta']
 
 const rsvpSelectTone: Record<RsvpStatus, string> = {
   pendiente: 'border-amber-200 bg-amber-50 text-amber-900',
@@ -61,7 +64,12 @@ export default function GuestsPage() {
   const [group, setGroup] = useState<GuestGroup | ''>('')
   const [status, setStatus] = useState<RsvpStatus | ''>('')
   const [age, setAge] = useState<AgeFilter>('')
-  const [sent, setSent] = useState<SentFilter>('')
+  const [params] = useSearchParams()
+  // Inicio enlaza aquí con el filtro puesto (?invitacion=sin_abrir)
+  const [sent, setSent] = useState<SentFilter>(() => {
+    const value = params.get('invitacion') as SentFilter
+    return SENT_FILTERS.includes(value) ? value : ''
+  })
   const [circlesOpen, setCirclesOpen] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [circleInput, setCircleInput] = useState('')
@@ -93,7 +101,11 @@ export default function GuestsPage() {
       (!status || g.rsvp_status === status) &&
       (!age || (agesOf.get(g.id)?.[age] ?? 0) > 0) &&
       (!sent ||
-        (sent === 'sin_enviar' ? !g.invitation_sent_at : g.invitation_sent_at && g.rsvp_status === 'pendiente')) &&
+        (sent === 'sin_enviar'
+          ? !g.invitation_sent_at
+          : sent === 'sin_responder'
+            ? g.invitation_sent_at && g.rsvp_status === 'pendiente'
+            : invitationStage(g) === sent)) &&
       (!term || `${g.name} ${g.phone ?? ''} ${g.notes ?? ''} ${g.circle ?? ''}`.toLowerCase().includes(term)),
   )
 
@@ -233,6 +245,8 @@ export default function GuestsPage() {
           <option value="">Toda invitación</option>
           <option value="sin_enviar">Sin enviar</option>
           <option value="sin_responder">Enviada, sin responder</option>
+          <option value="sin_abrir">Enviada, aún no la abren</option>
+          <option value="abierta">La abrieron y no responden</option>
         </Select>
       </div>
 
@@ -256,6 +270,7 @@ export default function GuestsPage() {
               const ages = ageSummary(agesOf.get(g.id)!)
               const waiting =
                 g.invitation_sent_at && g.rsvp_status === 'pendiente' ? -daysFromToday(g.invitation_sent_at) : null
+              const opened = openedNote(g)
               return (
                 <li key={g.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
                   <input
@@ -280,6 +295,9 @@ export default function GuestsPage() {
                       {ages && ` · ${ages}`}
                       {waiting != null &&
                         ` · invitada ${waiting === 0 ? 'hoy' : waiting === 1 ? 'ayer' : `hace ${waiting} días`}`}
+                      {opened && (
+                        <span className={invitationStage(g) === 'sin_abrir' ? 'text-amber-800' : undefined}> · {opened}</span>
+                      )}
                       {g.table_id && tableNumber.has(g.table_id) && ` · Mesa ${tableNumber.get(g.table_id)}`}
                       {g.dietary && ` · ${g.dietary}`}
                       {g.song_request && <Music className="ml-1.5 inline size-3 -translate-y-px" aria-label={`Pidió: ${g.song_request}`} />}

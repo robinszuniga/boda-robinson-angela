@@ -3,6 +3,7 @@ import { Check, Copy, MessageCircle } from 'lucide-react'
 import { guestsApi } from '../../lib/api'
 import { whatsappNumber } from '../../lib/contact'
 import { daysFromToday, formatDate } from '../../lib/format'
+import { invitationStage, openedNote } from '../../lib/invitationStatus'
 import { Modal } from '../../components/ui/Modal'
 import { Button, IconButton } from '../../components/ui/Button'
 import type { Guest, WeddingSettings } from '../../types/database'
@@ -64,6 +65,12 @@ export function RemindersModal({
                       </span>
                     ) : (
                       'Sin recordatorio'
+                    )}
+                    {openedNote(g) && (
+                      <span className={invitationStage(g) === 'sin_abrir' ? 'text-amber-800' : undefined}>
+                        {' · '}
+                        {openedNote(g)}
+                      </span>
                     )}
                     {!g.phone && ' · sin teléfono'}
                   </p>

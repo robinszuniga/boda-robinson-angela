@@ -77,6 +77,22 @@ function abrir() {
 }
 
 describe('página del invitado', () => {
+  it('avisa a los novios que el invitado abrió su invitación', async () => {
+    abrir()
+    await screen.findByRole('button', { name: 'Enviar respuesta' })
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith('rsvp_mark_opened', { p_token: 'tok123' }))
+  })
+
+  it('si no se pudo registrar que la abrió, el invitado igual responde sin enterarse', async () => {
+    rpc.mockImplementation(async (fn: string) => {
+      if (fn === 'rsvp_mark_opened') throw new Error('sin conexión')
+      return { data: view(fn === 'rsvp_get' ? 'pendiente' : 'confirmado'), error: null }
+    })
+    abrir()
+    fireEvent.click(await screen.findByRole('radio', { name: 'No podré ir' }))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('si no marcó si asiste, lo dice junto a los botones y no envía nada', async () => {
     abrir()
     fireEvent.click(await screen.findByRole('button', { name: 'Enviar respuesta' }))

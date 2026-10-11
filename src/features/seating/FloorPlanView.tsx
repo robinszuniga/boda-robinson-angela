@@ -28,6 +28,7 @@ import {
   type SeatPerson,
 } from '../../lib/floorPlan'
 import { seatsFor, type TableOccupancy } from '../../lib/seating'
+import { invitationStage, openedNote } from '../../lib/invitationStatus'
 import { plural } from '../../lib/format'
 import { options, tableShape, venueElementKind } from '../../lib/labels'
 import { Button, ButtonLink, IconButton } from '../../components/ui/Button'
@@ -576,7 +577,19 @@ function TablePanel({
                         g.rsvp_status === 'confirmado' ? 'bg-emerald-500' : 'bg-amber-400',
                       )}
                     />
-                    <span className="min-w-0 flex-1 truncate">{g.name}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{g.name}</span>
+                      {openedNote(g) && (
+                        <span
+                          className={cn(
+                            'block text-xs',
+                            invitationStage(g) === 'sin_abrir' ? 'text-amber-800' : 'text-muted',
+                          )}
+                        >
+                          {openedNote(g)}
+                        </span>
+                      )}
+                    </span>
                     {extra > 0 && <span className="text-xs text-muted">+{extra}</span>}
                   </button>
                 </li>

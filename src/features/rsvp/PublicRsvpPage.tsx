@@ -47,6 +47,16 @@ function useRsvp(token: string) {
 export default function PublicRsvpPage() {
   const { token = '' } = useParams()
   const rsvp = useRsvp(token)
+  const found = !!rsvp.data
+
+  // Para que los novios sepan que la abrió. Si falla no importa: al invitado no debe estorbarle.
+  useEffect(() => {
+    if (!found) return
+    supabase.rpc('rsvp_mark_opened', { p_token: token }).then(
+      () => {},
+      () => {},
+    )
+  }, [found, token])
 
   if (rsvp.isPending) {
     return (

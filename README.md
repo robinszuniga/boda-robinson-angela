@@ -12,7 +12,7 @@ App web para planear la boda (mayo 2027): presupuesto, proveedores, comparador, 
 | `/presupuesto` | Categorías con estimado vs. comprometido, abonos y pagos programados, gráficos y alerta de sobrecosto |
 | `/proveedores` | Ficha de cada proveedor: contacto, costos, pagos y contratos adjuntos |
 | `/comparador` | Hasta 4 opciones de una categoría lado a lado; "Reservar este" descarta las demás |
-| `/invitados` | Lista con grupo, edad (niños y adultos mayores), acompañantes (con o sin nombre), RSVP, dieta y mesa; link por invitado para copiar, enviar por WhatsApp o imprimir como QR; recordatorio a pendientes |
+| `/invitados` | Lista con grupo, edad (niños y adultos mayores), acompañantes (con o sin nombre), RSVP, dieta y mesa; link por invitado para copiar, enviar por WhatsApp o imprimir como QR; recordatorio a pendientes; muestra si cada pendiente ya abrió su invitación o no ("aún no la abre", "la abrió ayer"), con filtro para cada caso |
 | `/invitados/qr` | Hoja imprimible con el QR de cada invitado y tarjetas del álbum de fotos para las mesas |
 | `/mesas` | Arrastrar invitados a las mesas (o tocarlos para elegir la mesa), ocupación, niños y adultos mayores por mesa y vínculos "juntos/separados". La vista **Plano del salón** muestra las mesas (redondas, rectangulares o presidencial) donde van, con cada puesto en verde si confirmó, punteado si está reservado a un pendiente o "+" si está libre; se tocan los puestos libres para sentar a varios, se agregan la pista, la tarima, los baños, la entrada, el bar y el buffet, y un aviso rojo marca a los que dijeron que no y siguen anotados |
 | `/mesas/plano/imprimir` | El plano para imprimir o guardar en PDF (hoja acostada) con la lista numerada de quién va en cada mesa; se abre también desde la hoja del coordinador |
@@ -128,7 +128,7 @@ tests/                 Pruebas de la lógica y de la base de datos
 ## Seguridad
 
 - Todas las tablas tienen RLS: solo los correos de `app_users` leen o escriben.
-- El rol anónimo no tiene acceso a las tablas. La página pública usa tres funciones (`rsvp_get`, `rsvp_submit`, `rsvp_claim_gift`) que solo exponen los datos del invitado dueño del token.
+- El rol anónimo no tiene acceso a las tablas. La página pública usa cuatro funciones (`rsvp_get`, `rsvp_submit`, `rsvp_claim_gift` y `rsvp_mark_opened`) que solo exponen o tocan los datos del invitado dueño del token. `rsvp_mark_opened` guarda la primera vez que el invitado abre su link; si lo abren los novios con su sesión iniciada no cuenta, y las vistas previas de WhatsApp tampoco, porque no ejecutan la página.
 - Los documentos están en un bucket privado y se abren con URLs firmadas que duran una hora.
 - La anon key puede ir en el frontend. Nunca pongas la `service_role` key en la app.
 

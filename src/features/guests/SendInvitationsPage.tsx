@@ -6,6 +6,7 @@ import { attempt } from '../../lib/attempt'
 import { whatsappLink } from '../../lib/contact'
 import { formatPhone } from '../../lib/phones'
 import { formatDate } from '../../lib/format'
+import { invitationStage, openedNote } from '../../lib/invitationStatus'
 import { guestGroup, options } from '../../lib/labels'
 import { Button } from '../../components/ui/Button'
 import { Card, EmptyState, ErrorState, LoadingState, PageHeader, ProgressBar, Segmented } from '../../components/ui/Display'
@@ -165,6 +166,9 @@ export default function SendInvitationsPage() {
                   {guestGroup[g.guest_group]}
                   {g.phone && ` · ${formatPhone(g.phone)}`}
                   {g.invitation_sent_at && ` · enviada el ${formatDate(g.invitation_sent_at)}`}
+                  {openedNote(g) && (
+                    <span className={invitationStage(g) === 'sin_abrir' ? 'text-amber-800' : undefined}> · {openedNote(g)}</span>
+                  )}
                 </p>
               </div>
               {tab === 'enviadas' ? (

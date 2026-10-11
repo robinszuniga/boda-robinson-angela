@@ -140,6 +140,8 @@ export type Guest = {
   needs_transport: boolean
   rsvp_reminded_at: string | null
   invitation_sent_at: string | null
+  /** Primera vez que el invitado abrió su link (los novios no cuentan) */
+  rsvp_opened_at: string | null
   /** Link acortado de la invitación; si está vacío se usa el link largo */
   short_url: string | null
   circle: string | null
@@ -340,6 +342,7 @@ export type Database = {
     Functions: {
       is_couple: { Args: Record<string, never>; Returns: boolean }
       keep_alive: { Args: Record<string, never>; Returns: number }
+      rsvp_mark_opened: { Args: { p_token: string }; Returns: undefined }
       rsvp_get: { Args: { p_token: string }; Returns: RsvpView | null }
       rsvp_submit: {
         Args: {
