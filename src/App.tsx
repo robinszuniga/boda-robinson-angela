@@ -14,6 +14,7 @@ const VendorDetailPage = lazy(() => import('./features/vendors/VendorDetailPage'
 const ComparatorPage = lazy(() => import('./features/comparator/ComparatorPage'))
 const GuestsPage = lazy(() => import('./features/guests/GuestsPage'))
 const SeatingPage = lazy(() => import('./features/seating/SeatingPage'))
+const FloorPlanPrintPage = lazy(() => import('./features/seating/FloorPlanPrintPage'))
 const TasksPage = lazy(() => import('./features/tasks/TasksPage'))
 const DaySchedulePage = lazy(() => import('./features/daySchedule/DaySchedulePage'))
 const PrintSchedulePage = lazy(() => import('./features/daySchedule/PrintSchedulePage'))
@@ -43,6 +44,7 @@ export function App() {
           <Route path="/cronograma/imprimir" element={<Page><PrintSchedulePage /></Page>} />
           <Route path="/cronograma/coordinador" element={<Page><CoordinatorSheetPage /></Page>} />
           <Route path="/invitados/qr" element={<Page><QrSheetPage /></Page>} />
+          <Route path="/mesas/plano/imprimir" element={<Page><FloorPlanPrintPage /></Page>} />
           <Route element={<AppLayout />}>
             <Route index element={<Page><DashboardPage /></Page>} />
             <Route path="presupuesto" element={<Page><BudgetPage /></Page>} />

@@ -1,5 +1,6 @@
 import type { Guest, GuestMember, SeatingTable, TableShape, VenueElement, VenueElementKind } from '../types/database'
 import { membersApart, seatsFor } from './seating'
+import { venueElementKind } from './labels'
 
 // Unidades del plano: 1 ≈ 1 cm del salón a escala libre. Lo que importa es la proporción.
 /** Radio del círculo de cada puesto */
@@ -284,6 +285,8 @@ export function declinedAtTable(tableId: string, guests: Guest[], members: Guest
 // -------------------------------------------------------------
 // Elementos del salón
 // -------------------------------------------------------------
+
+export const elementLabel = (e: Pick<VenueElement, 'label' | 'kind'>) => e.label?.trim() || venueElementKind[e.kind]
 
 export const ELEMENT_SIZE: Record<VenueElementKind, { width: number; height: number }> = {
   pista: { width: 320, height: 320 },

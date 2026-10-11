@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router'
 import {
   DndContext,
   DragOverlay,
@@ -13,20 +14,21 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { toast } from 'sonner'
-import { Accessibility, AlertTriangle, Armchair, Baby, Lock, Pencil, Plus, Search, Trash2, UserMinus, Wand2 } from 'lucide-react'
+import { Accessibility, AlertTriangle, Armchair, Baby, Lock, Pencil, Plus, Search, Trash2, Wand2 } from 'lucide-react'
 import { guestLinksApi, guestMembersApi, guestsApi, seatingTablesApi } from '../../lib/api'
 import { linkConflicts, occupancy, seatsFor, type TableOccupancy, type TableStatus } from '../../lib/seating'
 import { ageSummary, partyAges, type AgeCount } from '../../lib/ages'
 import { Button, IconButton } from '../../components/ui/Button'
 import { Badge, EmptyState, ErrorState, LoadingState, PageHeader, Segmented } from '../../components/ui/Display'
 import { Input } from '../../components/ui/Field'
-import { Modal } from '../../components/ui/Modal'
 import { cn } from '../../components/ui/cn'
 import type { Guest, GuestMember, SeatingTable } from '../../types/database'
 import { TableFormModal } from './TableFormModal'
 import { LinksPanel } from './LinksPanel'
 import { AutoSeatModal } from './AutoSeatModal'
 import { DeleteTablesModal } from './DeleteTablesModal'
+import { AssignModal } from './AssignModal'
+import { FloorPlanView } from './FloorPlanView'
 
 const UNASSIGNED = 'sin-mesa'
 
@@ -142,6 +144,18 @@ export default function SeatingPage() {
   const [autoSeat, setAutoSeat] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [dragging, setDragging] = useState<Guest | null>(null)
+  const [params, setParams] = useSearchParams()
+  const vista = params.get('vista') === 'plano' ? 'plano' : 'lista'
+  const setVista = (v: 'lista' | 'plano') =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (v === 'plano') next.set('vista', 'plano')
+        else next.delete('vista')
+        return next
+      },
+      { replace: true },
+    )
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -200,7 +214,11 @@ export default function SeatingPage() {
     <>
       <PageHeader
         title="Mesas"
-        description="Arrastra a los invitados a su mesa, o tócalos para elegirla"
+        description={
+          vista === 'plano'
+            ? 'Ubiquen las mesas como en el salón y toquen un puesto libre para sentar a alguien'
+            : 'Arrastra a los invitados a su mesa, o tócalos para elegirla'
+        }
         actions={
           <>
             {(tables.data?.length ?? 0) > 0 && (
@@ -239,91 +257,112 @@ export default function SeatingPage() {
             <AlertTriangle className="size-3" /> {conflicts.length} {conflicts.length === 1 ? 'conflicto' : 'conflictos'}
           </Badge>
         )}
+        <div className="w-full sm:ml-auto sm:w-auto">
+          <Segmented
+            label="Vista"
+            value={vista}
+            onChange={setVista}
+            options={[
+              { value: 'lista', label: 'Lista' },
+              { value: 'plano', label: 'Plano del salón' },
+            ]}
+          />
+        </div>
       </div>
 
-      <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
-        <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-          <div className="flex flex-col gap-6 lg:sticky lg:top-6 lg:self-start">
-            <DropZone id={UNASSIGNED} className="rounded-2xl border border-line bg-white p-4 shadow-xs transition">
-              <h2 className="text-lg font-semibold">Sin mesa</h2>
-              <div className="relative mt-2">
-                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
-                <Input aria-label="Buscar invitado sin mesa" placeholder="Buscar…" className="h-9 pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
-              </div>
-              <div className="mt-3 flex max-h-[50vh] flex-col gap-1.5 overflow-y-auto pr-1">
-                {unassigned.length === 0 ? (
-                  <p className="py-4 text-center text-sm text-muted">{term ? 'Nadie coincide' : 'Todos tienen mesa'}</p>
-                ) : (
-                  unassigned.map((g) => (
-                    <GuestChip
-                      key={g.id}
-                      guest={g}
-                      ages={ages.get(g.id)}
-                      warn={conflictGuests.has(g.id)}
-                      seats={seatsOf(g)}
-                      onClick={() => setAssigning(g)}
-                    />
-                  ))
-                )}
-              </div>
-              <p className="mt-3 text-xs text-muted">Borde punteado = aún no confirma (se le reservan sus acompañantes).</p>
-              <p className="mt-1 text-xs text-muted">
-                Un acompañante puede sentarse en otra mesa: se elige en su ficha, y aquí aparece con borde punteado verde.
-              </p>
-              <p className="mt-1 text-xs text-muted">
-                <Baby className="inline size-3.5 -translate-y-px text-sky-700" /> niños ·{' '}
-                <Accessibility className="inline size-3.5 -translate-y-px text-violet-700" /> adultos mayores (siéntenlos
-                cerca de baños y salida)
-              </p>
-            </DropZone>
-            <LinksPanel guests={attending} links={links.data ?? []} conflicts={conflicts} />
-          </div>
-
-          <div>
-            <div className="mb-4">
-              <Segmented
-                label="Filtrar mesas"
-                value={filter}
-                onChange={setFilter}
-                options={[
-                  { value: 'todas', label: 'Todas' },
-                  { value: 'incompletas', label: 'Incompletas' },
-                  { value: 'sobrecupo', label: 'Sobrecupo' },
-                ]}
-              />
+      {vista === 'plano' ? (
+        <FloorPlanView
+          tables={tables.data ?? []}
+          guests={guests.data ?? []}
+          members={members.data ?? []}
+          occ={occ}
+          nextNumber={nextNumber}
+        />
+      ) : (
+        <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
+          <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+            <div className="flex flex-col gap-6 lg:sticky lg:top-6 lg:self-start">
+              <DropZone id={UNASSIGNED} className="rounded-2xl border border-line bg-white p-4 shadow-xs transition">
+                <h2 className="text-lg font-semibold">Sin mesa</h2>
+                <div className="relative mt-2">
+                  <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
+                  <Input aria-label="Buscar invitado sin mesa" placeholder="Buscar…" className="h-9 pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+                </div>
+                <div className="mt-3 flex max-h-[50vh] flex-col gap-1.5 overflow-y-auto pr-1">
+                  {unassigned.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-muted">{term ? 'Nadie coincide' : 'Todos tienen mesa'}</p>
+                  ) : (
+                    unassigned.map((g) => (
+                      <GuestChip
+                        key={g.id}
+                        guest={g}
+                        ages={ages.get(g.id)}
+                        warn={conflictGuests.has(g.id)}
+                        seats={seatsOf(g)}
+                        onClick={() => setAssigning(g)}
+                      />
+                    ))
+                  )}
+                </div>
+                <p className="mt-3 text-xs text-muted">Borde punteado = aún no confirma (se le reservan sus acompañantes).</p>
+                <p className="mt-1 text-xs text-muted">
+                  Un acompañante puede sentarse en otra mesa: se elige en su ficha, y aquí aparece con borde punteado verde.
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  <Baby className="inline size-3.5 -translate-y-px text-sky-700" /> niños ·{' '}
+                  <Accessibility className="inline size-3.5 -translate-y-px text-violet-700" /> adultos mayores (siéntenlos
+                  cerca de baños y salida)
+                </p>
+              </DropZone>
+              <LinksPanel guests={attending} links={links.data ?? []} conflicts={conflicts} />
             </div>
-            {occ.length === 0 ? (
-              <EmptyState
-                icon={<Armchair className="size-8" />}
-                title="Aún no hay mesas"
-                action={<Button onClick={() => setTableForm({})}>Crear mesas</Button>}
-              >
-                Crea varias mesas iguales de una vez y luego ajusta las especiales.
-              </EmptyState>
-            ) : visible.length === 0 ? (
-              <p className="py-10 text-center text-sm text-muted">No hay mesas con ese filtro.</p>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {visible.map((t) => (
-                  <TableCard
-                    key={t.table.id}
-                    occ={t}
-                    ages={ages}
-                    guestName={guestName}
-                    seatsOf={seatsOf}
-                    conflictGuests={conflictGuests}
-                    onEdit={() => setTableForm({ table: t.table })}
-                    onGuestClick={setAssigning}
-                  />
-                ))}
+
+            <div>
+              <div className="mb-4">
+                <Segmented
+                  label="Filtrar mesas"
+                  value={filter}
+                  onChange={setFilter}
+                  options={[
+                    { value: 'todas', label: 'Todas' },
+                    { value: 'incompletas', label: 'Incompletas' },
+                    { value: 'sobrecupo', label: 'Sobrecupo' },
+                  ]}
+                />
               </div>
-            )}
+              {occ.length === 0 ? (
+                <EmptyState
+                  icon={<Armchair className="size-8" />}
+                  title="Aún no hay mesas"
+                  action={<Button onClick={() => setTableForm({})}>Crear mesas</Button>}
+                >
+                  Crea varias mesas iguales de una vez y luego ajusta las especiales.
+                </EmptyState>
+              ) : visible.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted">No hay mesas con ese filtro.</p>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {visible.map((t) => (
+                    <TableCard
+                      key={t.table.id}
+                      occ={t}
+                      ages={ages}
+                      guestName={guestName}
+                      seatsOf={seatsOf}
+                      conflictGuests={conflictGuests}
+                      onEdit={() => setTableForm({ table: t.table })}
+                      onGuestClick={setAssigning}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-        <DragOverlay>
-          {dragging && <DraggingChip guest={dragging} ages={ages.get(dragging.id)} seats={seatsOf(dragging)} />}
-        </DragOverlay>
-      </DndContext>
+          <DragOverlay>
+            {dragging && <DraggingChip guest={dragging} ages={ages.get(dragging.id)} seats={seatsOf(dragging)} />}
+          </DragOverlay>
+        </DndContext>
+      )}
 
       {tableForm && <TableFormModal {...tableForm} nextNumber={nextNumber} onClose={() => setTableForm(null)} />}
       {deleting && <DeleteTablesModal tables={occ} onClose={() => setDeleting(false)} />}
@@ -432,52 +471,5 @@ function TableCard({
         )}
       </div>
     </DropZone>
-  )
-}
-
-function AssignModal({
-  guest,
-  tables,
-  seats,
-  onPick,
-  onClose,
-}: {
-  guest: Guest
-  tables: TableOccupancy[]
-  seats: number
-  onPick: (tableId: string | null) => void
-  onClose: () => void
-}) {
-  const needed = seats
-  return (
-    <Modal open onClose={onClose} title={guest.name} description={`Ocupa ${needed} ${needed === 1 ? 'puesto' : 'puestos'}. Elige su mesa.`}>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {tables.map((t) => {
-          const current = guest.table_id === t.table.id
-          const fits = current || t.free >= needed
-          return (
-            <button
-              key={t.table.id}
-              type="button"
-              onClick={() => onPick(t.table.id)}
-              className={cn(
-                'rounded-xl border px-3 py-2 text-left text-sm transition-colors',
-                current ? 'border-brand-600 bg-brand-50' : 'border-line hover:border-brand-300',
-              )}
-            >
-              <div className="font-medium">Mesa {t.table.number}</div>
-              <div className={cn('text-xs', fits ? 'text-muted' : 'text-red-700')}>
-                {current ? 'Mesa actual' : `${Math.max(t.free, 0)} libres`}
-              </div>
-            </button>
-          )
-        })}
-      </div>
-      {guest.table_id && (
-        <Button className="mt-4 w-full" variant="secondary" icon={<UserMinus className="size-4" />} onClick={() => onPick(null)}>
-          Quitar de la mesa
-        </Button>
-      )}
-    </Modal>
   )
 }

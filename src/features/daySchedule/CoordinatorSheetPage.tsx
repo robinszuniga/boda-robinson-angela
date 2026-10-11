@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
-import { ArrowLeft, NotebookPen, Printer } from 'lucide-react'
+import { ArrowLeft, Map as MapIcon, NotebookPen, Printer } from 'lucide-react'
 import {
   categoriesApi,
   guestMembersApi,
@@ -18,7 +18,7 @@ import { ageSummary } from '../../lib/ages'
 import { coordinatorGuests, type PersonAtTable } from '../../lib/coordinator'
 import { formatCOP, formatDate, formatTime, formatWeddingDate, plural } from '../../lib/format'
 import { attempt } from '../../lib/attempt'
-import { Button } from '../../components/ui/Button'
+import { Button, ButtonLink } from '../../components/ui/Button'
 import { ErrorState, LoadingState } from '../../components/ui/Display'
 import { Textarea } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
@@ -108,6 +108,9 @@ export default function CoordinatorSheetPage() {
           <ArrowLeft className="size-4" /> Volver
         </Link>
         <div className="flex gap-2">
+          <ButtonLink size="sm" variant="secondary" icon={<MapIcon className="size-4" />} to="/mesas/plano/imprimir?desde=coordinador">
+            Plano del salón
+          </ButtonLink>
           <Button size="sm" variant="secondary" icon={<NotebookPen className="size-4" />} onClick={() => setEditing(true)}>
             Personas clave
           </Button>
