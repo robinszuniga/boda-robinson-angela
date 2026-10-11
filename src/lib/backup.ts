@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from './supabase'
-import { todayISO } from './format'
+import { formatDate, todayISO } from './format'
 import { download, downloadCsv } from './download'
 import { ageGroup, guestGroup, rsvpStatus } from './labels'
 import type { Guest, GuestMember, SeatingTable, TableName } from '../types/database'
@@ -56,6 +56,7 @@ export function guestsCsv(guests: Guest[], tables: SeatingTable[], members: Gues
     'Grupo',
     'Edad',
     'Confirmación',
+    'Abrió la invitación',
     'Acompañantes permitidos',
     'Acompañantes confirmados',
     'Acompañantes (nombres)',
@@ -86,6 +87,7 @@ export function guestsCsv(guests: Guest[], tables: SeatingTable[], members: Gues
       guestGroup[g.guest_group],
       ageGroup[g.age_group],
       rsvpStatus[g.rsvp_status].label,
+      g.rsvp_opened_at ? formatDate(g.rsvp_opened_at) : '',
       g.plus_ones_allowed,
       g.plus_ones_confirmed,
       names.join(', '),

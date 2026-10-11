@@ -59,6 +59,7 @@ export function guest(overrides: Partial<Guest> = {}): Guest {
     needs_transport: false,
     rsvp_reminded_at: null,
     invitation_sent_at: null,
+    rsvp_opened_at: null,
     short_url: null,
     circle: null,
     age_group: 'adulto',
