@@ -14,6 +14,7 @@ export const BACKUP_TABLES: TableName[] = [
   'vendors',
   'payments',
   'seating_tables',
+  'venue_elements',
   'guests',
   'guest_members',
   'guest_links',

@@ -5,9 +5,11 @@ import type {
   GuestGroup,
   LinkKind,
   RsvpStatus,
+  TableShape,
   TaskAssignee,
   TaskPriority,
   TaskStatus,
+  VenueElementKind,
   VendorStatus,
   WeddingSettings,
 } from '../types/database'
@@ -77,6 +79,22 @@ export const documentCategory: Record<DocumentCategory, string> = {
   cotizacion: 'Cotización',
   factura: 'Factura / recibo',
   inspiracion: 'Inspiración',
+  otro: 'Otro',
+}
+
+export const tableShape: Record<TableShape, string> = {
+  redonda: 'Redonda',
+  rectangular: 'Rectangular',
+  presidencial: 'Presidencial',
+}
+
+export const venueElementKind: Record<VenueElementKind, string> = {
+  pista: 'Pista de baile',
+  tarima: 'Tarima / DJ',
+  banos: 'Baños',
+  entrada: 'Entrada',
+  bar: 'Bar',
+  buffet: 'Buffet',
   otro: 'Otro',
 }
 
