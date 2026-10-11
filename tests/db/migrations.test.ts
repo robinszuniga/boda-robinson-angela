@@ -511,3 +511,44 @@ describe('link corto de la invitación (0015)', () => {
     }
   })
 })
+
+describe('plano del salón (0016)', () => {
+  it('las mesas existentes quedan redondas, sin ubicar y sin girar', async () => {
+    await as('authenticated', COUPLE)
+    const [t] = await rows<{ shape: string; pos_x: number | null; pos_y: number | null; rotation: number }>(
+      `insert into public.seating_tables (number) values (1) returning shape, pos_x, pos_y, rotation`,
+    )
+    expect(t).toEqual({ shape: 'redonda', pos_x: null, pos_y: null, rotation: 0 })
+  })
+
+  it('una mesa está ubicada con las dos coordenadas o con ninguna, y el giro va de 0 a 359', async () => {
+    await as('authenticated', COUPLE)
+    await expect(db.query('insert into public.seating_tables (number, pos_x) values (1, 50)')).rejects.toThrow(
+      /seating_tables_pos_both/,
+    )
+    await expect(db.query('insert into public.seating_tables (number, rotation) values (2, 360)')).rejects.toThrow()
+    await db.query(`insert into public.seating_tables (number, shape, pos_x, pos_y, rotation) values (3, 'presidencial', 10, 20, 90)`)
+  })
+
+  it('solo los novios ven y editan los elementos del salón', async () => {
+    await as('authenticated', COUPLE)
+    await db.query(`insert into public.venue_elements (kind, pos_x, pos_y) values ('pista', 0, 0)`)
+    expect(await rows('select * from public.venue_elements')).toHaveLength(1)
+
+    await as('authenticated', STRANGER)
+    expect(await rows('select * from public.venue_elements')).toHaveLength(0)
+    await expect(db.query(`insert into public.venue_elements (kind) values ('bar')`)).rejects.toThrow(/row-level security/)
+
+    await as('anon')
+    await expect(db.query('select * from public.venue_elements')).rejects.toThrow(/permission denied/)
+
+    await as('postgres')
+    await db.exec('delete from public.venue_elements')
+  })
+
+  it('no acepta elementos de tamaño absurdo ni nombres vacíos', async () => {
+    await as('authenticated', COUPLE)
+    await expect(db.query(`insert into public.venue_elements (kind, width) values ('bar', 5)`)).rejects.toThrow()
+    await expect(db.query(`insert into public.venue_elements (kind, label) values ('otro', '  ')`)).rejects.toThrow()
+  })
+})

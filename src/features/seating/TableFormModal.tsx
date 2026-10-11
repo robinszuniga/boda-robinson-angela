@@ -5,11 +5,12 @@ import { Trash2 } from 'lucide-react'
 import { seatingTablesApi } from '../../lib/api'
 import { attempt } from '../../lib/attempt'
 import { Button } from '../../components/ui/Button'
-import { Checkbox, Field, FormGrid, Input } from '../../components/ui/Field'
+import { Checkbox, Field, FormGrid, Input, Select } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
 import { Segmented } from '../../components/ui/Display'
 import { useConfirm } from '../../components/ui/Confirm'
-import type { SeatingTable } from '../../types/database'
+import { options, tableShape } from '../../lib/labels'
+import type { SeatingTable, TableShape } from '../../types/database'
 
 interface FormValues {
   number: number
@@ -17,6 +18,7 @@ interface FormValues {
   capacity: number
   count: number
   locked: boolean
+  shape: TableShape
 }
 
 export function TableFormModal({
@@ -44,6 +46,7 @@ export function TableFormModal({
       capacity: table?.capacity ?? 10,
       count: 5,
       locked: table?.locked ?? false,
+      shape: table?.shape ?? 'redonda',
     },
   })
 
@@ -53,15 +56,21 @@ export function TableFormModal({
       ok = await attempt(
         update.mutateAsync({
           id: table.id,
-          values: { number: v.number, name: v.name.trim() || null, capacity: v.capacity, locked: v.locked },
+          values: { number: v.number, name: v.name.trim() || null, capacity: v.capacity, locked: v.locked, shape: v.shape },
         }),
       )
     } else if (mode === 'varias') {
-      const rows = Array.from({ length: v.count }, (_, i) => ({ number: v.number + i, capacity: v.capacity }))
+      const rows = Array.from({ length: v.count }, (_, i) => ({ number: v.number + i, capacity: v.capacity, shape: v.shape }))
       ok = await attempt(create.mutateAsync(rows))
     } else {
       ok = await attempt(
-        create.mutateAsync({ number: v.number, name: v.name.trim() || null, capacity: v.capacity, locked: v.locked }),
+        create.mutateAsync({
+          number: v.number,
+          name: v.name.trim() || null,
+          capacity: v.capacity,
+          locked: v.locked,
+          shape: v.shape,
+        }),
       )
     }
     if (!ok) return
@@ -134,6 +143,17 @@ export function TableFormModal({
               {(id) => <Input id={id} {...register('name')} />}
             </Field>
           )}
+          <Field label="Forma" hint="Presidencial: todos sentados del mismo lado">
+            {(id) => (
+              <Select id={id} {...register('shape')}>
+                {options(tableShape).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
         </FormGrid>
         {mode === 'una' && (
           <Checkbox
