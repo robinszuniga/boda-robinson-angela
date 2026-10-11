@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  AlertTriangle,
   Armchair,
   LayoutGrid,
   Pencil,
@@ -12,20 +11,18 @@ import {
   Trash2,
   UserPlus,
 } from 'lucide-react'
-import { guestMembersApi, guestsApi, seatingTablesApi, venueElementsApi } from '../../lib/api'
+import { guestMembersApi, seatingTablesApi, venueElementsApi } from '../../lib/api'
 import { tableKey } from '../../lib/crud'
 import { attempt, attemptLoud } from '../../lib/attempt'
 import {
   autoPositions,
   clampElementSize,
-  declinedAtTable,
   ELEMENT_SIZE,
   elementLabel,
   layoutPlan,
   normalizeRotation,
   peopleAtTable,
   snap,
-  type DeclinedAtTable,
   type Point,
   type SeatPerson,
 } from '../../lib/floorPlan'
@@ -44,7 +41,8 @@ import type { TableInfo } from './PlanDrawing'
 import { SeatGuestsModal } from './SeatGuestsModal'
 import { AssignModal } from './AssignModal'
 import { TableFormModal } from './TableFormModal'
-import { resetTablePositions, useSaveTablePositions } from './planActions'
+import { resetTablePositions, useRemoveDeclined, useSaveTablePositions } from './planActions'
+import { DeclinedNotice, type DeclinedItem } from './DeclinedNotice'
 import { OpenedNote } from '../guests/OpenedNote'
 
 const ROTATE_STEP = 45
@@ -56,8 +54,6 @@ function missingMigration(error: unknown) {
   return code === 'PGRST205' || code === '42P01' || code === 'PGRST204' || code === '42703'
 }
 
-type Declined = DeclinedAtTable & { tableNumber: number }
-
 export function FloorPlanView({
   tables,
   guests,
@@ -66,6 +62,7 @@ export function FloorPlanView({
   nextNumber,
   unseatedPeople,
   assign,
+  declined,
 }: {
   tables: SeatingTable[]
   guests: Guest[]
@@ -76,6 +73,8 @@ export function FloorPlanView({
   unseatedPeople: number
   /** Sentar a un invitado en una mesa (o sacarlo), con el mismo aviso de sobrecupo que la lista */
   assign: (guest: Guest, tableId: string | null) => void
+  /** Los que dijeron que no y siguen en una mesa (los calcula la página de Mesas, igual que para la lista) */
+  declined: DeclinedItem[]
 }) {
   const qc = useQueryClient()
   const confirm = useConfirm()
@@ -84,9 +83,9 @@ export function FloorPlanView({
   const updateElement = venueElementsApi.useUpdate()
   const createElement = venueElementsApi.useCreate()
   const removeElement = venueElementsApi.useRemove()
-  const updateGuest = guestsApi.useUpdate()
   const updateMember = guestMembersApi.useUpdate()
   const savePositions = useSaveTablePositions()
+  const removeDeclined = useRemoveDeclined()
   const canvas = useRef<FloorPlanHandle>(null)
   const panel = useRef<HTMLElement>(null)
   const [selected, setSelected] = useState<PlanSelection | null>(null)
@@ -99,14 +98,6 @@ export function FloorPlanView({
   const layout = useMemo(
     () => layoutPlan(tables, new Map(occ.map((o) => [o.table.id, o.used])), elementList ?? []),
     [tables, occ, elementList],
-  )
-  // Los que dijeron que no y siguen en una mesa: para el aviso rojo de cada mesa y la lista del panel
-  const declined = useMemo<Declined[]>(
-    () =>
-      occ.flatMap((o) =>
-        declinedAtTable(o.table.id, guests, members).map((d) => ({ ...d, tableNumber: o.table.number })),
-      ),
-    [occ, guests, members],
   )
   const infos = useMemo(
     () =>
@@ -207,10 +198,6 @@ export function FloorPlanView({
     if (ok) updateMember.mutate({ id: member.id, values: { table_id: null } })
   }
 
-  const removeDeclined = (d: Pick<Declined, 'guestId' | 'memberId'>) => {
-    if (d.memberId) updateMember.mutate({ id: d.memberId, values: { table_id: null } })
-    else updateGuest.mutate({ id: d.guestId, values: { table_id: null } })
-  }
 
   const addElement = async (kind: VenueElementKind) => {
     const at = canvas.current?.center() ?? { x: 0, y: 0 }
@@ -427,52 +414,18 @@ function PanelShell({ title, subtitle, onClose, children }: { title: string; sub
   )
 }
 
-function DeclinedList({
-  items,
-  showTable,
-  onRemove,
-}: {
-  items: Declined[]
-  showTable: boolean
-  onRemove: (d: Declined) => void
-}) {
-  if (items.length === 0) return null
-  return (
-    <div className="rounded-xl border border-red-200 bg-red-50 p-3">
-      <p className="flex items-center gap-1.5 text-sm font-medium text-red-800">
-        <AlertTriangle className="size-4" />
-        {items.length === 1 ? 'Dijo que no va' : 'Dijeron que no van'}
-      </p>
-      <p className="mt-0.5 text-xs text-red-800/80">Su puesto ya quedó libre. Quítenlos para llenar el hueco.</p>
-      <ul className="mt-2 flex flex-col gap-1.5">
-        {items.map((d) => (
-          <li key={d.key} className="flex items-center justify-between gap-2 text-sm">
-            <span className="min-w-0 truncate">
-              {d.name}
-              {showTable && <span className="text-red-800/70"> · mesa {d.tableNumber}</span>}
-            </span>
-            <Button size="sm" variant="secondary" className="h-7 shrink-0 px-2 text-xs" onClick={() => onRemove(d)}>
-              Quitar
-            </Button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
 function OverviewPanel({
   declined,
   unseatedPeople,
   onRemoveDeclined,
 }: {
-  declined: Declined[]
+  declined: DeclinedItem[]
   unseatedPeople: number
-  onRemoveDeclined: (d: Declined) => void
+  onRemoveDeclined: (d: DeclinedItem) => void
 }) {
   return (
     <PanelShell title="Cómo usar el plano">
-      <DeclinedList items={declined} showTable onRemove={onRemoveDeclined} />
+      <DeclinedNotice items={declined} showTable onRemove={onRemoveDeclined} />
       {unseatedPeople > 0 && (
         <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
           {plural(unseatedPeople, 'persona sigue', 'personas siguen')} sin mesa. Toquen un puesto libre (+) para sentarlas.
@@ -502,13 +455,13 @@ function TablePanel({
 }: {
   occ: TableOccupancy
   members: GuestMember[]
-  declined: Declined[]
+  declined: DeclinedItem[]
   onShape: (shape: TableShape) => void
   onRotate: (delta: number) => void
   onSeat: () => void
   onEdit: () => void
   onGuest: (guest: Guest) => void
-  onRemoveDeclined: (d: Declined) => void
+  onRemoveDeclined: (d: DeclinedItem) => void
   onClose: () => void
 }) {
   const t = occ.table
@@ -530,7 +483,7 @@ function TablePanel({
         Sentar invitados
       </Button>
 
-      <DeclinedList items={declined} showTable={false} onRemove={onRemoveDeclined} />
+      <DeclinedNotice items={declined} showTable={false} onRemove={onRemoveDeclined} />
 
       <div>
         <p className="mb-1.5 text-xs font-medium text-muted">Forma</p>

@@ -14,10 +14,11 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { toast } from 'sonner'
-import { Accessibility, AlertTriangle, Armchair, Baby, Lock, Pencil, Plus, Search, Trash2, Wand2 } from 'lucide-react'
+import { Accessibility, AlertTriangle, Armchair, Baby, Lock, Pencil, Plus, Search, Trash2, UserX, Wand2 } from 'lucide-react'
 import { guestLinksApi, guestMembersApi, guestsApi, seatingTablesApi } from '../../lib/api'
 import { linkConflicts, occupancy, seatsFor, type TableOccupancy, type TableStatus } from '../../lib/seating'
 import { ageSummary, partyAges, type AgeCount } from '../../lib/ages'
+import { declinedAtTable } from '../../lib/floorPlan'
 import { Button, IconButton } from '../../components/ui/Button'
 import { Badge, EmptyState, ErrorState, LoadingState, PageHeader, Segmented } from '../../components/ui/Display'
 import { Input } from '../../components/ui/Field'
@@ -29,6 +30,8 @@ import { AutoSeatModal } from './AutoSeatModal'
 import { DeleteTablesModal } from './DeleteTablesModal'
 import { AssignModal } from './AssignModal'
 import { FloorPlanView } from './FloorPlanView'
+import { DeclinedNotice, type DeclinedItem } from './DeclinedNotice'
+import { useRemoveDeclined } from './planActions'
 
 const UNASSIGNED = 'sin-mesa'
 
@@ -137,6 +140,7 @@ export default function SeatingPage() {
   const links = guestLinksApi.useList()
   const members = guestMembersApi.useList()
   const update = guestsApi.useUpdate()
+  const removeDeclined = useRemoveDeclined()
   const [filter, setFilter] = useState<Filter>('todas')
   const [search, setSearch] = useState('')
   const [tableForm, setTableForm] = useState<{ table?: SeatingTable } | null>(null)
@@ -173,6 +177,13 @@ export default function SeatingPage() {
   const occ = occupancy(tables.data ?? [], attending, members.data ?? [])
   const conflicts = linkConflicts(links.data ?? [], guests.data ?? [])
   const conflictGuests = new Set(conflicts.flatMap((c) => [c.a.id, c.b.id]))
+  // Los que dijeron que no y siguen anotados en una mesa (su puesto ya está libre)
+  const declined: DeclinedItem[] = occ.flatMap((o) =>
+    declinedAtTable(o.table.id, guests.data ?? [], members.data ?? []).map((d) => ({
+      ...d,
+      tableNumber: o.table.number,
+    })),
+  )
   const tableIds = new Set((tables.data ?? []).map((t) => t.id))
   const term = search.trim().toLowerCase()
   const unassigned = attending
@@ -257,6 +268,12 @@ export default function SeatingPage() {
             <AlertTriangle className="size-3" /> {conflicts.length} {conflicts.length === 1 ? 'conflicto' : 'conflictos'}
           </Badge>
         )}
+        {declined.length > 0 && (
+          <Badge tone="red">
+            <UserX className="size-3" />{' '}
+            {declined.length === 1 ? '1 no va y sigue en su mesa' : `${declined.length} no van y siguen en su mesa`}
+          </Badge>
+        )}
         <div className="w-full sm:ml-auto sm:w-auto">
           <Segmented
             label="Vista"
@@ -279,6 +296,7 @@ export default function SeatingPage() {
           nextNumber={nextNumber}
           unseatedPeople={unassignedPeople}
           assign={assign}
+          declined={declined}
         />
       ) : (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
@@ -354,6 +372,8 @@ export default function SeatingPage() {
                       conflictGuests={conflictGuests}
                       onEdit={() => setTableForm({ table: t.table })}
                       onGuestClick={setAssigning}
+                      declined={declined.filter((d) => d.tableNumber === t.table.number)}
+                      onRemoveDeclined={removeDeclined}
                     />
                   ))}
                 </div>
@@ -401,6 +421,8 @@ function TableCard({
   conflictGuests,
   onEdit,
   onGuestClick,
+  declined,
+  onRemoveDeclined,
 }: {
   occ: TableOccupancy
   ages: AgesById
@@ -409,6 +431,9 @@ function TableCard({
   conflictGuests: Set<string>
   onEdit: () => void
   onGuestClick: (g: Guest) => void
+  /** Los que dijeron que no y siguen anotados en esta mesa */
+  declined: DeclinedItem[]
+  onRemoveDeclined: (d: DeclinedItem) => void
 }) {
   const style = statusStyle[occ.status]
   const tableAges = ageSummary(
@@ -472,6 +497,7 @@ function TableCard({
           <p className="rounded-lg border border-dashed border-line py-3 text-center text-xs text-muted">Suelta invitados aquí</p>
         )}
       </div>
+      <DeclinedNotice items={declined} showTable={false} onRemove={onRemoveDeclined} className="mt-3" />
     </DropZone>
   )
 }
