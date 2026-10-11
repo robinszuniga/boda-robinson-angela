@@ -1,8 +1,8 @@
 import type { Guest, GuestGroup, GuestLink, GuestMember, SeatingTable } from '../types/database'
 import { seatsFor } from './seating'
 
-/** Orden en que se van llenando las mesas */
-const GROUP_ORDER: GuestGroup[] = ['familia_novio', 'familia_novia', 'amigos', 'trabajo', 'otros']
+/** Orden en que se van llenando las mesas (y en que se listan los grupos) */
+export const GROUP_ORDER: GuestGroup[] = ['familia_novio', 'familia_novia', 'amigos', 'trabajo', 'otros']
 
 export interface PlannedTable {
   table: SeatingTable

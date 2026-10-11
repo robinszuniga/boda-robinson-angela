@@ -277,6 +277,8 @@ export default function SeatingPage() {
           members={members.data ?? []}
           occ={occ}
           nextNumber={nextNumber}
+          unseatedPeople={unassignedPeople}
+          assign={assign}
         />
       ) : (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
