@@ -23,6 +23,10 @@ export const seatingTablesApi = createTableApi('seating_tables', {
   invalidates: ['guests', 'guest_members'],
 })
 
+export const venueElementsApi = createTableApi('venue_elements', {
+  order: [{ column: 'created_at' }],
+})
+
 export const guestsApi = createTableApi('guests', {
   order: [{ column: 'name' }],
   invalidates: ['guest_links', 'gift_claims', 'gifts_received', 'guest_members'],

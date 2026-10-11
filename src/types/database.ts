@@ -11,6 +11,8 @@ export type TaskPriority = 'alta' | 'media' | 'baja'
 export type DocumentCategory = 'contrato' | 'cotizacion' | 'factura' | 'inspiracion' | 'otro'
 export type GiftKind = 'articulo' | 'efectivo'
 export type AgeGroup = 'adulto' | 'nino' | 'mayor'
+export type TableShape = 'redonda' | 'rectangular' | 'presidencial'
+export type VenueElementKind = 'pista' | 'tarima' | 'banos' | 'entrada' | 'bar' | 'buffet' | 'otro'
 
 export type WeddingSettings = {
   id: number
@@ -93,6 +95,27 @@ export type SeatingTable = {
   capacity: number
   /** Fijada: el reparto automático no la toca */
   locked: boolean
+  shape: TableShape
+  /** Posición del centro en el plano; null = aún no se ha ubicado */
+  pos_x: number | null
+  pos_y: number | null
+  /** Giro en grados (0 a 359) */
+  rotation: number
+  created_at: string
+}
+
+/** Lo que hay en el salón además de las mesas: pista, tarima, baños, entrada… */
+export type VenueElement = {
+  id: string
+  kind: VenueElementKind
+  /** Nombre que se muestra; si está vacío se usa el del tipo */
+  label: string | null
+  /** Centro del elemento en el plano */
+  pos_x: number
+  pos_y: number
+  width: number
+  height: number
+  rotation: number
   created_at: string
 }
 
@@ -302,6 +325,7 @@ export type Database = {
       vendors: TableDef<Vendor, 'name'>
       payments: TableDef<Payment, 'category_id' | 'amount'>
       seating_tables: TableDef<SeatingTable, 'number'>
+      venue_elements: TableDef<VenueElement, 'kind'>
       guests: TableDef<Guest, 'name'>
       guest_members: TableDef<GuestMember, 'guest_id' | 'name'>
       guest_links: TableDef<GuestLink, 'guest_a' | 'guest_b'>
