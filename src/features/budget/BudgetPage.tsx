@@ -7,6 +7,7 @@ import { daysFromToday, formatCOP, formatDate, formatPercent } from '../../lib/f
 import { vendorStatus } from '../../lib/labels'
 import { Button, IconButton } from '../../components/ui/Button'
 import { Badge, Card, CardHeader, EmptyState, ErrorState, LoadingState, PageHeader, ProgressBar, Stat } from '../../components/ui/Display'
+import { PROGRESS_LAYER_COLORS } from '../../components/ui/progressStyles'
 import { cn } from '../../components/ui/cn'
 import type { BudgetCategory, Payment, Vendor } from '../../types/database'
 import { CategoryFormModal } from './CategoryFormModal'
@@ -158,6 +159,7 @@ function CategoryRow({
   const { category } = row
   // Reservados, pagados, o con abono aunque sigan "cotizando" (la misma regla del total)
   const hired = vendors.filter((v) => isHired(v, payments))
+  const tone = row.overBudget ? 'red' : 'brand'
   const sortedPayments = [...payments].sort((a, b) => b.date.localeCompare(a.date))
 
   return (
@@ -179,19 +181,29 @@ function CategoryRow({
             )}
             <ChevronDown className={cn('ml-auto size-4 shrink-0 text-muted transition-transform', open && 'rotate-180')} />
           </div>
+          {/* La parte fuerte es lo pagado y la clara lo contratado. Antes era una
+              sola capa, contratado vs estimado: el planner se veía lleno con
+              solo la mitad pagada. Si se pasa del estimado, la escala es lo
+              contratado, así sigue viéndose cuánto se ha pagado de eso. */}
           <ProgressBar
-            value={row.committed}
-            max={row.estimated || row.committed || 1}
-            tone={row.overBudget ? 'red' : 'brand'}
-            label={`${category.name}: comprometido vs estimado`}
+            value={row.paid}
+            secondary={row.committed}
+            max={Math.max(row.estimated, row.committed) || 1}
+            tone={tone}
+            label={`${category.name}: pagado y contratado`}
+            valueText={`Pagado ${formatCOP(row.paid)} de ${formatCOP(row.committed)} contratado${row.estimated > 0 ? `; estimado ${formatCOP(row.estimated)}` : ''}`}
           />
           <div className="flex w-full flex-wrap justify-between gap-x-4 gap-y-0.5 text-xs text-muted tabular-nums">
             <span>
               <span className={cn('font-semibold', row.overBudget ? 'text-red-700' : 'text-ink')}>{formatCOP(row.committed)}</span>
-              {row.estimated > 0 ? ` de ${formatCOP(row.estimated)}` : ' · sin estimado'}
+              {' contratado'}
+              {row.estimated > 0 ? ` de ${formatCOP(row.estimated)} estimado` : ' · sin estimado'}
             </span>
-            <span>
-              Pagado {formatCOP(row.paid)} · Falta {formatCOP(row.pending)}
+            <span className="inline-flex flex-wrap items-center gap-x-1.5">
+              <span aria-hidden className={cn('inline-block size-2 rounded-full', PROGRESS_LAYER_COLORS.solid[tone])} />
+              Pagado {formatCOP(row.paid)} ·
+              <span aria-hidden className={cn('inline-block size-2 rounded-full', PROGRESS_LAYER_COLORS.light[tone])} />
+              Falta {formatCOP(row.pending)}
             </span>
           </div>
         </button>

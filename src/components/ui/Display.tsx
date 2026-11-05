@@ -4,6 +4,7 @@ import type { Tone } from '../../lib/labels'
 import { describeError } from '../../lib/errors'
 import { cn } from './cn'
 import { Button } from './Button'
+import { PROGRESS_LAYER_COLORS } from './progressStyles'
 
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
   return <section className={cn('rounded-2xl border border-line bg-white shadow-xs', className)}>{children}</section>
@@ -56,23 +57,31 @@ export function Badge({ tone = 'neutral', children, className }: { tone?: Tone; 
 export function ProgressBar({
   value,
   max,
+  secondary,
   tone = 'brand',
   className,
   label,
+  valueText,
 }: {
   value: number
   max: number
+  /**
+   * Una segunda capa más clara detrás de la principal. En el presupuesto la
+   * clara es lo contratado y la fuerte lo pagado: con una sola capa se veía la
+   * barra llena aunque solo se hubiera pagado la mitad.
+   */
+  secondary?: number
   tone?: 'brand' | 'red' | 'amber' | 'accent'
   className?: string
   label?: string
+  /** Lo que lee el lector de pantalla cuando el número solo no lo explica */
+  valueText?: string
 }) {
-  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0
-  const color = {
-    brand: 'bg-brand-500',
-    red: 'bg-red-600',
-    amber: 'bg-amber-500',
-    accent: 'bg-accent-400',
-  }[tone]
+  const pctOf = (n: number) => (max > 0 ? Math.min(100, (n / max) * 100) : 0)
+  const layered = secondary != null
+  const color = layered
+    ? PROGRESS_LAYER_COLORS.solid[tone]
+    : { brand: 'bg-brand-500', red: 'bg-red-600', amber: 'bg-amber-500', accent: 'bg-accent-400' }[tone]
   return (
     <div
       role="progressbar"
@@ -80,9 +89,16 @@ export function ProgressBar({
       aria-valuemin={0}
       aria-valuemax={max}
       aria-valuenow={value}
-      className={cn('h-2 w-full overflow-hidden rounded-full bg-stone-100', className)}
+      aria-valuetext={valueText}
+      className={cn('relative h-2 w-full overflow-hidden rounded-full bg-stone-100', className)}
     >
-      <div className={cn('h-full rounded-full transition-all', color)} style={{ width: `${pct}%` }} />
+      {layered && (
+        <div
+          className={cn('absolute inset-y-0 left-0 rounded-full transition-all', PROGRESS_LAYER_COLORS.light[tone])}
+          style={{ width: `${pctOf(secondary)}%` }}
+        />
+      )}
+      <div className={cn('relative h-full rounded-full transition-all', color)} style={{ width: `${pctOf(value)}%` }} />
     </div>
   )
 }
