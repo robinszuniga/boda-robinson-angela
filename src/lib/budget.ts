@@ -29,15 +29,30 @@ export interface BudgetSummary {
 
 const BOOKED: Vendor['status'][] = ['reservado', 'pagado']
 
-export function vendorBookedCost(vendor: Vendor): number {
-  if (!BOOKED.includes(vendor.status)) return 0
+/**
+ * ¿Ya está contratado? Si está reservado o pagado, o si ya se le dio un abono
+ * aunque siga marcado "cotizando": un abono es porque se contrató. Sin esto el
+ * catering (5M abonados de 32,4M) decía que no faltaba nada por pagar.
+ * Los descartados nunca, para no convertir su cotización en una deuda que no existe.
+ * Esta misma regla la usan el presupuesto, las tarjetas de proveedores y la hoja
+ * del coordinador, para que las tres digan lo mismo.
+ */
+export function isHired(vendor: Vendor, payments: Payment[]): boolean {
+  if (vendor.status === 'descartado') return false
+  return BOOKED.includes(vendor.status) || payments.some((p) => p.vendor_id === vendor.id)
+}
+
+/** Lo que cuesta un proveedor contratado: el costo final o, si no hay, lo cotizado. 0 si no está contratado. */
+export function vendorBookedCost(vendor: Vendor, payments: Payment[]): number {
+  if (!isHired(vendor, payments)) return 0
   return vendor.final_cost ?? vendor.quoted_cost ?? 0
 }
 
 /**
  * Resume el presupuesto por categoría. Cada pago cuenta una sola vez en el comprometido:
  * - si está ligado a un proveedor de la misma categoría, el proveedor aporta
- *   max(costo reservado, suma de sus pagos), así un abono a un proveedor aún "cotizando" también cuenta;
+ *   max(su costo, suma de sus pagos). Con un abono ya cuenta como contratado
+ *   (ver isHired), así que aporta su costo completo y "falta" es lo que queda;
  * - si no (sin proveedor o de otra categoría), cuenta como gasto suelto.
  */
 export function summarizeBudget(
@@ -54,7 +69,7 @@ export function summarizeBudget(
       const ownPayments = catPayments
         .filter((p) => p.vendor_id === v.id)
         .reduce((s, p) => s + p.amount, 0)
-      return sum + Math.max(vendorBookedCost(v), ownPayments)
+      return sum + Math.max(vendorBookedCost(v, catPayments), ownPayments)
     }, 0)
     const loose = catPayments
       .filter((p) => !p.vendor_id || !vendorIds.has(p.vendor_id))
@@ -102,13 +117,13 @@ export interface VendorBalance {
   scheduled: Payment[]
 }
 
-/** Saldo de cada proveedor reservado o pagado. Si está marcado "Pagado" no se le debe nada. */
+/** Saldo de cada proveedor contratado (ver isHired). Si está marcado "Pagado" no se le debe nada. */
 export function vendorBalances(vendors: Vendor[], payments: Payment[]): VendorBalance[] {
   return vendors
-    .filter((v) => BOOKED.includes(v.status))
+    .filter((v) => isHired(v, payments))
     .map((vendor) => {
       const own = payments.filter((p) => p.vendor_id === vendor.id)
-      const cost = Math.max(vendorBookedCost(vendor), own.reduce((s, p) => s + p.amount, 0))
+      const cost = Math.max(vendorBookedCost(vendor, payments), own.reduce((s, p) => s + p.amount, 0))
       const paid = own.filter((p) => p.is_paid).reduce((s, p) => s + p.amount, 0)
       return {
         vendor,

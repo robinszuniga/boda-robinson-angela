@@ -3,11 +3,21 @@ import { summarizeBudget, upcomingPayments, vendorBalances, vendorBookedCost } f
 import { category, payment, vendor } from './factories'
 
 describe('vendorBookedCost', () => {
-  it('usa el costo final, o el cotizado si no hay final, solo si está reservado o pagado', () => {
-    expect(vendorBookedCost(vendor({ status: 'reservado', quoted_cost: 100, final_cost: 120 }))).toBe(120)
-    expect(vendorBookedCost(vendor({ status: 'pagado', quoted_cost: 100 }))).toBe(100)
-    expect(vendorBookedCost(vendor({ status: 'cotizando', quoted_cost: 100 }))).toBe(0)
-    expect(vendorBookedCost(vendor({ status: 'descartado', final_cost: 100 }))).toBe(0)
+  it('usa el costo final, o el cotizado si no hay final, solo si está contratado', () => {
+    expect(vendorBookedCost(vendor({ status: 'reservado', quoted_cost: 100, final_cost: 120 }), [])).toBe(120)
+    expect(vendorBookedCost(vendor({ status: 'pagado', quoted_cost: 100 }), [])).toBe(100)
+    expect(vendorBookedCost(vendor({ status: 'cotizando', quoted_cost: 100 }), [])).toBe(0)
+    expect(vendorBookedCost(vendor({ status: 'descartado', final_cost: 100 }), [])).toBe(0)
+  })
+
+  it('el que sigue "cotizando" pero ya tiene un abono cuenta como contratado', () => {
+    const v = vendor({ status: 'cotizando', quoted_cost: 32_400_000 })
+    expect(vendorBookedCost(v, [payment({ category_id: 'c', vendor_id: v.id, amount: 5_000_000 })])).toBe(32_400_000)
+  })
+
+  it('un descartado nunca, aunque haya recibido un depósito', () => {
+    const v = vendor({ status: 'descartado', quoted_cost: 9_000_000 })
+    expect(vendorBookedCost(v, [payment({ category_id: 'c', vendor_id: v.id, amount: 1_000_000 })])).toBe(0)
   })
 })
 
@@ -32,11 +42,40 @@ describe('summarizeBudget', () => {
     expect(row.overBudget).toBe(false)
   })
 
-  it('un abono a un proveedor que sigue cotizando cuenta como comprometido', () => {
-    const cat = category({ estimated: 1_000 })
-    const v = vendor({ category_id: cat.id, status: 'cotizando', quoted_cost: 5_000 })
-    const summary = summarizeBudget([cat], [v], [payment({ category_id: cat.id, vendor_id: v.id, amount: 800 })])
-    expect(summary.rows[0].committed).toBe(800)
+  it('un abono a un proveedor que sigue cotizando cuenta su costo completo y dice cuánto falta', () => {
+    // El catering: 32,4M cotizados y 5M abonados. Antes contaba solo el abono y decía "falta 0"
+    const cat = category({ estimated: 32_580_000 })
+    const v = vendor({ category_id: cat.id, status: 'cotizando', quoted_cost: 32_400_000 })
+    const summary = summarizeBudget([cat], [v], [
+      payment({ category_id: cat.id, vendor_id: v.id, amount: 5_000_000, is_paid: true }),
+    ])
+    expect(summary.rows[0]).toMatchObject({ committed: 32_400_000, paid: 5_000_000, pending: 27_400_000 })
+  })
+
+  it('un pago suelto no se le atribuye a nadie; ligado al proveedor, dice cuánto falta', () => {
+    // El planner: 5M con Alejandra y el 50% registrado sin elegirla como proveedora
+    const cat = category({ estimated: 5_000_000 })
+    const alejandra = vendor({ category_id: cat.id, status: 'cotizando', quoted_cost: 5_000_000, final_cost: 5_000_000 })
+    const suelto = summarizeBudget([cat], [alejandra], [payment({ category_id: cat.id, amount: 2_500_000 })])
+    expect(suelto.rows[0].pending).toBe(0)
+    const ligado = summarizeBudget([cat], [alejandra], [
+      payment({ category_id: cat.id, vendor_id: alejandra.id, amount: 2_500_000 }),
+    ])
+    expect(ligado.rows[0]).toMatchObject({ committed: 5_000_000, paid: 2_500_000, pending: 2_500_000 })
+  })
+
+  it('un descartado con depósito no se vuelve deuda: solo cuenta lo que ya se le pagó', () => {
+    const cat = category()
+    const v = vendor({ category_id: cat.id, status: 'descartado', quoted_cost: 10_000_000 })
+    const summary = summarizeBudget([cat], [v], [payment({ category_id: cat.id, vendor_id: v.id, amount: 1_000_000 })])
+    expect(summary.rows[0]).toMatchObject({ committed: 1_000_000, paid: 1_000_000, pending: 0 })
+  })
+
+  it('los que solo están cotizando, sin abono, no suman: son opciones, no deudas', () => {
+    const cat = category({ estimated: 5_000_000 })
+    const a = vendor({ category_id: cat.id, status: 'cotizando', quoted_cost: 4_000_000 })
+    const b = vendor({ category_id: cat.id, status: 'cotizando', quoted_cost: 6_000_000 })
+    expect(summarizeBudget([cat], [a, b], []).rows[0]).toMatchObject({ committed: 0, pending: 0 })
   })
 
   it('no cuenta dos veces los pagos si superan el costo del proveedor', () => {
@@ -114,5 +153,19 @@ describe('vendorBalances', () => {
     expect(balances[1]).toMatchObject({ cost: 2_000_000, paid: 0, pending: 0 })
     // Pagaron más de lo cotizado: el costo real es lo pagado
     expect(balances[2]).toMatchObject({ cost: 600_000, paid: 600_000, pending: 0 })
+  })
+
+  it('en la hoja del coordinador aparece el que sigue cotizando con abono, y nunca un descartado', () => {
+    const catering = vendor({ name: 'Catering', status: 'cotizando', quoted_cost: 32_400_000 })
+    const viejo = vendor({ name: 'Descartado', status: 'descartado', quoted_cost: 9_000_000 })
+    const balances = vendorBalances(
+      [catering, viejo],
+      [
+        payment({ category_id: 'c', vendor_id: catering.id, amount: 5_000_000 }),
+        payment({ category_id: 'c', vendor_id: viejo.id, amount: 1_000_000 }),
+      ],
+    )
+    expect(balances.map((b) => b.vendor.name)).toEqual(['Catering'])
+    expect(balances[0]).toMatchObject({ cost: 32_400_000, paid: 5_000_000, pending: 27_400_000 })
   })
 })

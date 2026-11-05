@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { Plus, Search, Store } from 'lucide-react'
 import { categoriesApi, paymentsApi, vendorsApi } from '../../lib/api'
+import { isHired } from '../../lib/budget'
 import { formatCOP } from '../../lib/format'
 import { options, vendorStatus } from '../../lib/labels'
 import { Button } from '../../components/ui/Button'
@@ -126,7 +127,7 @@ export default function VendorsPage() {
                   <span className="text-muted">{v.final_cost != null ? 'Costo final' : 'Cotizado'}</span>
                   <span className="font-semibold tabular-nums">{formatCOP(cost)}</span>
                 </div>
-                {cost != null && cost > 0 && (v.status === 'reservado' || v.status === 'pagado') && (
+                {cost != null && cost > 0 && isHired(v, payments.data ?? []) && (
                   <div className="mt-2">
                     <ProgressBar value={paid} max={cost} label={`Pagado a ${v.name}`} />
                     <p className="mt-1 text-xs text-muted tabular-nums">

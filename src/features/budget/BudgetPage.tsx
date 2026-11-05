@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { AlertTriangle, ChevronDown, Pencil, Plus, Wallet } from 'lucide-react'
 import { categoriesApi, paymentsApi, useSettings, vendorsApi } from '../../lib/api'
-import { summarizeBudget, vendorBookedCost, type CategorySummary } from '../../lib/budget'
+import { isHired, summarizeBudget, vendorBookedCost, type CategorySummary } from '../../lib/budget'
 import { daysFromToday, formatCOP, formatDate, formatPercent } from '../../lib/format'
 import { vendorStatus } from '../../lib/labels'
 import { Button, IconButton } from '../../components/ui/Button'
@@ -156,7 +156,8 @@ function CategoryRow({
   onEditPayment: (p: Payment) => void
 }) {
   const { category } = row
-  const booked = vendors.filter((v) => vendorBookedCost(v) > 0)
+  // Reservados, pagados, o con abono aunque sigan "cotizando" (la misma regla del total)
+  const hired = vendors.filter((v) => isHired(v, payments))
   const sortedPayments = [...payments].sort((a, b) => b.date.localeCompare(a.date))
 
   return (
@@ -201,18 +202,19 @@ function CategoryRow({
 
       {open && (
         <div className="space-y-4 bg-ivory/60 px-5 py-4 text-sm">
-          {booked.length > 0 && (
+          {hired.length > 0 && (
             <div>
-              <h3 className="mb-1 font-sans text-xs font-semibold tracking-wide text-muted uppercase">Proveedores reservados</h3>
+              <h3 className="mb-1 font-sans text-xs font-semibold tracking-wide text-muted uppercase">Proveedores contratados</h3>
               <ul className="space-y-1">
-                {booked.map((v) => (
+                {hired.map((v) => (
                   <li key={v.id} className="flex items-center justify-between gap-2">
                     <Link to={`/proveedores/${v.id}`} className="truncate hover:underline">
                       {v.name}
                     </Link>
                     <span className="flex items-center gap-2 tabular-nums">
                       <Badge tone={vendorStatus[v.status].tone}>{vendorStatus[v.status].label}</Badge>
-                      {formatCOP(vendorBookedCost(v))}
+                      {/* Sin precio el "falta" solo puede contar los pagos: que se note */}
+                      {vendorBookedCost(v, payments) > 0 ? formatCOP(vendorBookedCost(v, payments)) : 'Sin precio total'}
                     </span>
                   </li>
                 ))}
